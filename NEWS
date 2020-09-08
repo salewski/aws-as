@@ -39,3 +39,44 @@ which they were fixed will be noted here, as well.
   The 'aws-as' project provides a collection of tools for switching between
   cached sets of AWS IAM User and/or Role credentials when working at the
   command line.
+
+FIXME: document these someplace:
+
+  The aws-cli configuration does not directly support storing the MFA serial
+  number for non-Role profiles. If a profile has an 'mfa_serial' key, then it
+  is expected to have a 'role_arn' key, as well; you will get an error if you
+  have an 'mfa_serial' key in the section for a non-Role profile.
+
+  However, the 'aws-cli configuration' subcommand is sufficiently general that
+  it /will/ allow us to store (nearly) arbitrary key/value pairs in the
+  file. We therefore claim the namespace prefix "aws_as_" for keys related to
+  'aws-as'.
+
+  Currently there is only one key with the 'aws_as_' prefix:
+
+  :    aws_as_mfa_serial
+
+  We use this key to store the MFA serial number for the device associated
+  with an IAM User.
+
+  :    $ aws --profile my-user-with-mfa configure set aws_as_mfa_serial 'arn:aws:iam::111111111111:mfa/my-username'
+
+  :    $ aws --profile my-user-with-mfa configure get aws_as_mfa_serial
+  :    arn:aws:iam::111111111111:mfa/my-username
+
+  The 'aws_as_mfa_serial' key is only needed for profiles used for IAM Users
+  that need to authenticate (to STS) with MFA; it is never needed for profiles
+  used for IAM Roles (see below).
+
+  The 'aws-as' program looks (in a given profile) for the keys defined by
+  aws-cli ('role_arn' and 'mfa_serial') first, and only falls back to checking
+  the profile for the 'aws_as_mfa_serial' key if /neither/ is found. The
+  reason is that the presence of the 'role_arn' means the aws-cli program will
+  interpret the profile as representing an IAM Role to be assumed (so is not
+  for an IAM User); using the 'mfa_serial' key would be the proper way to
+  configure such a profile to use MFA, if needed.
+
+  Users of 'aws-as' that need (or wish) to authenticate to STS as an IAM User,
+  with MFA, should configure an aws-cli profile with the 'aws_as_mfa_serial'
+  key as shown above. This will avoid the need to provide it on the command
+  line.
