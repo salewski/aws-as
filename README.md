@@ -158,7 +158,7 @@ which the 'user1' has access. Notice how the shell prompt changes in these
 calls, too:
 
 ```
-    $ eval $(aws-as -s)
+    $ eval $(aws-as-activate -s)
     (-) $
 
     (-) $ aws-as my-user1-dev
