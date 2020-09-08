@@ -22,20 +22,16 @@
 
 declare -r PROG='aws-as-activate.in'
 
-
 declare -r COPYRIGHT_DATES='2020'
 
-# FIXME: one day this will be filtered in at build time
-declare -r MAINTAINER='Alan D. Salewski <salewski@att.net>'
+# declare -r MAINTAINER='@DFLT_MAINTAINER_FULL@'
+declare -r MAINTAINER='@PACKAGE_BUGREPORT@'  # value filtered in at build time
 
-# FIXME: one day this will be filtered in at build time
-declare -r VERSION='0.0.1'
+declare -r VERSION='@VERSION@'  # value filtered in at build time
 
-# FIXME: one day this will be filtered in at build time
-# This variable is replaced at build time
-# declare -r gl_const_build_date='@BUILD_DATE@'
-# declare -r gl_const_release="${VERSION}  (built: ${gl_const_build_date})"
-declare -r gl_const_release="${VERSION}"
+declare -r gl_const_build_date='@BUILD_DATE@'
+declare -r gl_const_release="${VERSION}  (built: ${gl_const_build_date})"
+#declare -r gl_const_release="${VERSION}"
 
 # Note that we use an "application" $TRACING flag separate from bash's
 # built-in 'xtrace' (set -x) shell option. This allows us to have a general
@@ -56,7 +52,7 @@ TRACING=false      # enable with three or more '-v' (--verbose) opts
 # particular tool by setting an environment variable named after the tool
 # (with hyphen chars changed to underscores).
 
-#CAT_PROG="${CAT:-/usr/bin/cat}"
+CAT_PROG="${CAT:-@CAT_PROG@}"
 
 
 opt_target_csh=false  # enable with -c  (or by a $SHELL that looks like a csh style shell)
@@ -466,16 +462,24 @@ if $opt_target_sh \
     fi
 fi
 
-# FIXME: implement support for csh
+
 if $opt_target_csh; then
+    # csh-style shell
+
     printf "${PROG} (WIP): csh support not yet implemented; bailing out\n" 1>&2
     exit 1
+
+    # FIXME: implement support for csh
+else
+    # Bourne-style shell
+
+    # FIXME: For our initial version, we are assuming we can use bashisms
+
+    ${CAT_PROG} - <<EOF
+EOF
+
 fi
 
-exit 77
-
-
-# FIXME: implement meat
 
 if $BE_VERBOSE; then
     printf "${PROG} (info): completed successfully\n" 1>&2
@@ -581,6 +585,8 @@ not look like it is a csh style of shell.
 
 This option is mutually exclusive with C<-c> (C<--csh>); only one or the other
 may be provided.
+
+B<CAREFUL:> This eary WIP version uses "bashisms"; pure POSIX shell support is planned
 
 
 =item -v, --verbose
