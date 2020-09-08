@@ -50,6 +50,21 @@ dnl if test -z "$AWK_PROG"; then
 dnl     AC_MSG_ERROR([awk not found])
 dnl fi
 
+
+## The 'aws' program as supplied by the 'aws/aws-cli' GitHub repo or the
+## 'awscli' Debian package. Either version 1 or 2 should work fine for our
+## purposes.
+##
+##     https://aws.amazon.com/cli/
+##     https://github.com/aws/aws-cli
+##
+##     https://tracker.debian.org/pkg/awscli
+##
+AC_PATH_PROG(AWS_PROG, aws)
+if test -z "$AWS_PROG"; then
+    AC_MSG_ERROR([aws not found])
+fi
+
 ## We need bash >= 3.x
 ##
 AC_PATH_PROG(BASH_SH, bash)
@@ -243,6 +258,7 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]PERL[@],$(PERL),g'"'"' \
   -e '"'"'s,[@]POD2MAN[@],$(POD2MAN),g'"'"' \
   \
+  -e '"'"'s,[@]AWS_PROG[@],$(AWS_PROG),g'"'"' \
   -e '"'"'s,[@]BASH_SH[@],$(BASH_SH),g'"'"' \
   -e '"'"'s,[@]CAT[@],$(CAT),g'"'"' \
   -e '"'"'s,[@]ECHO_PROG[@],$(ECHO_PROG),g'"'"' \
@@ -368,6 +384,7 @@ printf "               System binaries: %s\n" "`__poor_mans_expand_file_name sbi
 printf "           Configuration files: %s\n" "`__poor_mans_expand_file_name sysconfdir`"
 printf "                  Manual pages: %s\n" "`__poor_mans_expand_file_name mandir`"
 printf "\n"
+printf "                           aws: %s\n" "`__poor_mans_expand_file_name AWS_PROG`"
 printf "                          bash: %s\n" "`__poor_mans_expand_file_name BASH_SH`"
 printf "                            jq: %s\n" "`__poor_mans_expand_file_name JQ_PROG`"
 printf "                          perl: %s\n" "`__poor_mans_expand_file_name PERL`"
