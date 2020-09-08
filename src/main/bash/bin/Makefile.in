@@ -241,10 +241,9 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+INPUT_TEMPLATES = \
+    aws-as-activate.in
 
-#INPUT_TEMPLATES = \
-#    aws-as-activate.in
-INPUT_TEMPLATES = 
 
 # "static" scripts
 SSCRIPTS = 
