@@ -193,7 +193,7 @@ again (until the short-term credentials obtained above expire):
     (-) $
 
     # switch back to 'my-user1' creds (just to show we can)
-    (-) $
+    (-) $ aws-as my-user1-dev
     (my-user1-dev) $
 
     # remove all aws-as gunk from the environment
