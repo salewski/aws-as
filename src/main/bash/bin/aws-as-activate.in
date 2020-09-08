@@ -56,6 +56,8 @@ TRACING=false      # enable with three or more '-v' (--verbose) opts
 # (with hyphen chars changed to underscores).
 
 CAT_PROG="${CAT:-@CAT@}"
+CHMOD_PROG="${CHMOD:-@CHMOD_PROG@}"
+MKDIR_PROG="${MKDIR:-@MKDIR_PROG@}"
 
 AWS_PROG="${AWS:-@AWS_PROG@}"
 
@@ -507,6 +509,7 @@ else
     declare -a t_cleanup_statements=()
 
     "${CAT_PROG}" - <<'EOF'
+
 __t_v_aws_as_PS1_hold=
 __t_v_aws_as_have_PS1_hold=false
 if test "${PS1:+is_set}" = 'is_set'; then
@@ -514,16 +517,21 @@ if test "${PS1:+is_set}" = 'is_set'; then
     __t_v_aws_as_have_PS1_hold=true
 fi
 EOF
+
     t_cleanup_statements+=('unset -v __t_v_aws_as_PS1_hold')
     t_cleanup_statements+=('unset -v __t_v_aws_as_have_PS1_hold')
     t_cleanup_statements+=('${__t_v_aws_as_have_PS1_hold} && PS1=${__t_v_aws_as_PS1_hold}')
 
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CHMOD_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_MKDIR_PROG')
 
     "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
-__T_V_AWS_AS_AWS_PROG=${AWS_PROG}
+__T_V_AWS_AS_AWS_PROG='${AWS_PROG}'
+__T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
+__T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
 EOF
 
     # switch back to using non-interpolated heredoc
@@ -573,6 +581,46 @@ EOF
         t_cleanup_statements+=('${__t_v_aws_as_have_'"${vname}"'_hold} && '"${vname}"'=${__t_v_aws_as_'"${vname}"'_hold}')
     done
 
+
+    # FIXME: Maybe allow our .d directory to live someplace configurable. Some
+    #        folks would likely prefer XDG-compliant behavior; consider adding
+    #        it.
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_DOT_D_DIR')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CACHE_DIR')
+    "${CAT_PROG}" - <<'EOF'
+
+__T_V_AWS_AS_DOT_D_DIR="${HOME}/.aws-as.d"
+if test -d "${__T_V_AWS_AS_DOT_D_DIR}"; then :; else
+    "${__T_V_AWS_AS_MKDIR_PROG}" --mode '0700' "${__T_V_AWS_AS_DOT_D_DIR}"
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to create dir \"%s\"; stopping\n" \
+               "${__T_V_AWS_AS_DOT_D_DIR}" 1>&2
+        return 1
+    fi
+#    "${__T_V_AWS_AS_CHMOD_PROG}" 0700 "${__T_V_AWS_AS_DOT_D_DIR}"
+#    if test $? -ne 0; then
+#        printf "${__T_V_AWS_AS_PROG} (error): was unable to chmod dir \"%s\"; stopping\n" \
+#               "${__T_V_AWS_AS_DOT_D_DIR}" 1>&2
+#        return 1
+#    fi
+fi
+__T_V_AWS_AS_CACHE_DIR="${__T_V_AWS_AS_DOT_D_DIR}/cache"
+if test -d "${__T_V_AWS_AS_CACHE_DIR}"; then :; else
+    "${__T_V_AWS_AS_MKDIR_PROG}" --mode '0700' "${__T_V_AWS_AS_CACHE_DIR}"
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to create dir \"%s\"; stopping\n" \
+               "${__T_V_AWS_AS_CACHE_DIR}" 1>&2
+        return 1
+    fi
+#    "${__T_V_AWS_AS_CHMOD_PROG}" 0700 "${__T_V_AWS_AS_CACHE_DIR}"
+#    if test $? -ne 0; then
+#        printf "${__T_V_AWS_AS_PROG} (error): was unable to chmod dir \"%s\"; stopping\n" \
+#               "${__T_V_AWS_AS_CACHE_DIR}" 1>&2
+#        return 1
+#    fi
+fi
+EOF
 
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -f aws-as')
@@ -692,13 +740,37 @@ function __t_f_aws_as_try_set_profile_as () {
         return 1
     fi
 
-# FIXME: AL.DEBUG working here
-
-    # Give ourselves a "clean slate", as it were...
+    # Give ourselves a "clean slate", as it were. This also helps avoid
+    # unintended interactions between our aws-cli command line params
+    # and any AWS_* variables that were set in the environment.
     #
     __t_f_aws_as_clear_out_profile
 
-    # ...and then establish these profile settings
+    # We need to know whether or not we're dealing with a "User profile"
+    # or "Role profile" because it dictates our approach for deal with
+    # the cached credentials (if any).
+    #
+    local t_profile_is_for_iam_role=false
+    t_role_arn=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'role_arn')
+    #
+    # XXX: The 'configure get' subcommand currently does not indicate
+    #      via its exit status whether or not the item was found. There
+    #      is no way to distinguish an error from "key not present".
+    #      Since we have made it this far, though, the 'aws configure'
+    #      command is known to be basically working; so we are going to
+    #      interpret a non-zero status as meaning "not found".
+    #      Check back on this at some point, and see if PR #4890 has
+    #      lead to a change from what is described above:
+    #
+    #          https://github.com/aws/aws-cli/pull/4890
+    #
+    if test $? -ne 0; then :; else
+        if test -n "${t_role_arn}"; then
+            t_profile_is_for_iam_role=true
+        fi
+    fi
+
+    # Finally, establish our new "switched to" profile settings
     #
     __T_V_AWS_AS_PROFILE=${t_profile_name}
     __t_f_aws_as_maybe_update_PS1
@@ -791,7 +863,6 @@ function aws-as-deactivate () {
     __t_f_aws_as_cleanup
 }
 EOF
-
 
 fi
 
