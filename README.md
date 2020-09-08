@@ -1,5 +1,9 @@
 # aws-as
 
+The `aws-as` project provides a collection of tools for switching between
+cached sets of AWS IAM User and/or Role credentials when working at the
+command line.
+
 Think "venv for AWS IAM identities", and you're on the right track.
 
 Allows you to express within a given shell, "I now want to interact with AWS
