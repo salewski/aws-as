@@ -520,25 +520,77 @@ function aws-as-deactivate () {
     __t_f_aws_as_cleanup
 }
 
-__t_v_aws_as_ps1_hold=
-__t_v_aws_as_have_ps1_hold=false
+__t_v_aws_as_PS1_hold=
+__t_v_aws_as_have_PS1_hold=false
 if test "${PS1:+is_set}" = 'is_set'; then
-    __t_v_aws_as_ps1_hold=$PS1
-    __t_v_aws_as_have_ps1_hold=true
+    __t_v_aws_as_PS1_hold=$PS1
+    __t_v_aws_as_have_PS1_hold=true
 fi
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_ps1_hold')
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_ps1_hold')
-__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_ps1_hold} && PS1=${__t_v_aws_as_ps1_hold}')
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_PS1_hold')
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_PS1_hold')
+__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_PS1_hold} && PS1=${__t_v_aws_as_PS1_hold}')
 
 __t_v_aws_as_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE')
 __T_V_AWS_AS_PROFILE='-'
-__t_v_aws_as_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_ps1')
-function __t_f_aws_as_maybe_update_ps1 () {
+__t_v_aws_as_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_PS1')
+function __t_f_aws_as_maybe_update_PS1 () {
     if test "${PS1:+is_set}" = 'is_set'; then
-        PS1='('"${__T_V_AWS_AS_PROFILE}"') '"${__t_v_aws_as_ps1_hold}"
+        PS1='('"${__T_V_AWS_AS_PROFILE}"') '"${__t_v_aws_as_PS1_hold}"
     fi
 }
-__t_f_aws_as_maybe_update_ps1
+__t_f_aws_as_maybe_update_PS1
+
+# FIXME: In some scenarios, we might be able to use the "as is" active
+#        profile (as indicated by the AWS_PROFILE env var). For now,
+#        though, our basic implementation just clears out any AWS_*
+#        env vars found in the environment that would conflict with our
+#        usage. We are careful to keep track of them, though, and restore
+#        the "as found" value to what they were originally when the user
+#        invokes 'aws-as-deactivate'.
+
+__t_v_aws_as_AWS_PROFILE_hold=
+__t_v_aws_as_have_AWS_PROFILE_hold=false
+if test "${AWS_PROFILE:+is_set}" = 'is_set'; then
+    __t_v_aws_as_AWS_PROFILE_hold=$AWS_PROFILE
+    __t_v_aws_as_have_AWS_PROFILE_hold=true
+fi
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_PROFILE_hold')
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_PROFILE_hold')
+__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_PROFILE_hold} && AWS_PROFILE=${__t_v_aws_as_AWS_PROFILE_hold}')
+
+
+__t_v_aws_as_AWS_ACCESS_KEY_ID_hold=
+__t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=false
+if test "${AWS_ACCESS_KEY_ID:+is_set}" = 'is_set'; then
+    __t_v_aws_as_AWS_ACCESS_KEY_ID_hold=$AWS_ACCESS_KEY_ID
+    __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=true
+fi
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_ACCESS_KEY_ID_hold')
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold')
+__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold} && AWS_ACCESS_KEY_ID=${__t_v_aws_as_AWS_ACCESS_KEY_ID_hold}')
+
+
+__t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=
+__t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=false
+if test "${AWS_SECRET_ACCESS_KEY:+is_set}" = 'is_set'; then
+    __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=$AWS_SECRET_ACCESS_KEY
+    __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=true
+fi
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold')
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold')
+__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold} && AWS_SECRET_ACCESS_KEY=${__t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold}')
+
+
+__t_v_aws_as_AWS_SESSION_TOKEN_hold=
+__t_v_aws_as_have_AWS_SESSION_TOKEN_hold=false
+if test "${AWS_SESSION_TOKEN:+is_set}" = 'is_set'; then
+    __t_v_aws_as_AWS_SESSION_TOKEN_hold=$AWS_SESSION_TOKEN
+    __t_v_aws_as_have_AWS_SESSION_TOKEN_hold=true
+fi
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SESSION_TOKEN_hold')
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SESSION_TOKEN_hold')
+__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_SESSION_TOKEN_hold} && AWS_SESSION_TOKEN=${__t_v_aws_as_AWS_SESSION_TOKEN_hold}')
+
 
 EOF
 
