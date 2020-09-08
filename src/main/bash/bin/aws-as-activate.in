@@ -57,6 +57,8 @@ TRACING=false      # enable with three or more '-v' (--verbose) opts
 
 CAT_PROG="${CAT:-@CAT@}"
 
+AWS_PROG="${AWS:-@AWS_PROG@}"
+
 
 opt_target_csh=false  # enable with -c  (or by a $SHELL that looks like a csh style shell)
 opt_target_sh=false   # enable with -s  (or by a $SHELL that does not look like a csh style shell)
@@ -517,6 +519,16 @@ EOF
     t_cleanup_statements+=('${__t_v_aws_as_have_PS1_hold} && PS1=${__t_v_aws_as_PS1_hold}')
 
     t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_PROG')
+
+    "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
+
+__T_V_AWS_AS_AWS_PROG=${AWS_PROG}
+EOF
+
+    # switch back to using non-interpolated heredoc
+    #
+    t_cleanup_statements+=(':')
 
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE')
     t_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_PS1')
@@ -552,6 +564,7 @@ __t_v_aws_as_have_${vname}_hold=false
 if test "\${${vname}:+is_set}" = 'is_set'; then
     __t_v_aws_as_${vname}_hold=\$${vname}
     __t_v_aws_as_have_${vname}_hold=true
+    unset ${vname}
 fi
 EOF
         t_cleanup_statements+=(':')
@@ -567,6 +580,8 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROG')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_clear_out_profile')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as')
 
     # Design note: To the extent possible, the user-facing 'aws-as' function
     # should feel like a normal command to the end-user.
@@ -605,17 +620,101 @@ EODEF
 }
 EOF
 
+    # switch back to using non-interpolated heredoc
+    #
     "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aws_as_clear_out_profile () {
+
+    unset AWS_PROFILE
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_SESSION_TOKEN
+
+    __T_V_AWS_AS_PROFILE='-'
+    __t_f_aws_as_maybe_update_PS1
+}
+
+# @param: PROFILE
+function __t_f_aws_as_try_set_profile_as () {
+
+    local __required_count=1
+    if test $# -ne ${__required_count}; then
+        printf "${__T_V_AWS_AS_PROG} (BUG): ${FUNCNAME}() invoked with %d args; %d required\n" \
+            $# ${__required_count} 1>&2
+        return 1
+    fi
+
+    local t_profile_name
+
+    t_profile_name=$1
+
+    if test -z "${t_profile_name}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): profile name may not be the empty string\n" 1>&2
+        return 1
+    fi
+
+    # XXX: Technically, there might be a way to use a blank profile name
+    #      in 'aws-cli', but for now we are not allowing it. Please let
+    #      reach out if this causes you grief for some reason.
+    #
+    if [[ "${t_profile_name}" =~ ^[[:space:]]*$ ]]; then
+        printf "${__T_V_AWS_AS_PROG} (error): profile name may not be blank\n" 1>&2
+        return 1
+    fi
+
+    local -a t_all_legit=()
+    for t_one_pname in $("${__T_V_AWS_AS_AWS_PROG}" configure list-profiles); do
+        t_all_legit+=("${t_one_pname}")
+    done
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to obtain list of all legit aws-cli profile names\n" 1>&2
+        return 1
+    fi
+
+    local t_is_legit=false
+    for t_one_pname in "${t_all_legit[@]}"; do
+        if test "${t_one_pname}" = "${t_profile_name}"; then
+            t_is_legit=true
+            break
+        fi
+    done
+
+    if $t_is_legit; then :; else
+        {
+            printf "${__T_V_AWS_AS_PROG} (error): \"%s\" is not a recognized aws-cli profile name\n" \
+                   "${t_profile_name}"
+            printf '    Legit profile names include:\n'
+            for t_one_legit in "${t_all_legit[@]}"; do
+                printf '        %s\n' "${t_one_legit}"
+            done
+        } 1>&2
+        return 1
+    fi
+
+# FIXME: AL.DEBUG working here
+
+    # Give ourselves a "clean slate", as it were...
+    #
+    __t_f_aws_as_clear_out_profile
+
+    # ...and then establish these profile settings
+    #
+    __T_V_AWS_AS_PROFILE=${t_profile_name}
+    __t_f_aws_as_maybe_update_PS1
+
+    return 0
+}
 
 function aws-as () {
 
     if test $# -lt 1; then
-        printf "${__T_V_AWS_PROG} (error): AWS_CLI_PROFILE parameter missing; bailing out\n" 1>&2
+        printf "${__T_V_AWS_AS_PROG} (error): AWS_CLI_PROFILE parameter missing; bailing out\n" 1>&2
         __t_f_aws_as_print_help 1>&2
         return 1
     fi
     if test $# -gt 1; then
-        printf "${__T_V_AWS_PROG} (error): too many parameters (expected one, but got %d); bailing out\n" "$#" 1>&2
+        printf "${__T_V_AWS_AS_PROG} (error): too many parameters (expected one, but got %d); bailing out\n" "$#" 1>&2
         __t_f_aws_as_print_help 1>&2
         return 1
     fi
@@ -637,6 +736,19 @@ function aws-as () {
             t_profile_name=$1
             ;;
     esac
+
+    if test "${t_profile_name}" = '-'; then
+        __t_f_aws_as_clear_out_profile
+        return 0
+    fi
+
+    __t_f_aws_as_try_set_profile_as "${t_profile_name}"
+    if test $? -ne 0; then
+#        printf "${__T_V_AWS_AS_PROG} (error): error encountered why trying to switch to profile: \"%s\"; bailing out\n" "${t_profile_name}" 1>&2
+        return 1
+    fi
+
+    return 0
 }
 EOF
 
