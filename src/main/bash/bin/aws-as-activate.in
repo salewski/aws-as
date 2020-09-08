@@ -560,46 +560,6 @@ EOF
         t_cleanup_statements+=('${__t_v_aws_as_have_'"${vname}"'_hold} && '"${vname}"'=${__t_v_aws_as_'"${vname}"'_hold}')
     done
 
-
-#     "${CAT_PROG}" - <<'EOF'
-# __t_v_aws_as_AWS_ACCESS_KEY_ID_hold=
-# __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=false
-# if test "${AWS_ACCESS_KEY_ID:+is_set}" = 'is_set'; then
-#     __t_v_aws_as_AWS_ACCESS_KEY_ID_hold=$AWS_ACCESS_KEY_ID
-#     __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=true
-# fi
-# EOF
-#     t_cleanup_statements+=('unset -v __t_v_aws_as_AWS_ACCESS_KEY_ID_hold')
-#     t_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold')
-#     t_cleanup_statements+=('${__t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold} && AWS_ACCESS_KEY_ID=${__t_v_aws_as_AWS_ACCESS_KEY_ID_hold}')
-
-
-#     "${CAT_PROG}" - <<'EOF'
-# __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=
-# __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=false
-# if test "${AWS_SECRET_ACCESS_KEY:+is_set}" = 'is_set'; then
-#     __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=$AWS_SECRET_ACCESS_KEY
-#     __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=true
-# fi
-# EOF
-#     t_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold')
-#     t_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold')
-#     t_cleanup_statements+=('${__t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold} && AWS_SECRET_ACCESS_KEY=${__t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold}')
-
-
-#     "${CAT_PROG}" - <<'EOF'
-# __t_v_aws_as_AWS_SESSION_TOKEN_hold=
-# __t_v_aws_as_have_AWS_SESSION_TOKEN_hold=false
-# if test "${AWS_SESSION_TOKEN:+is_set}" = 'is_set'; then
-#     __t_v_aws_as_AWS_SESSION_TOKEN_hold=$AWS_SESSION_TOKEN
-#     __t_v_aws_as_have_AWS_SESSION_TOKEN_hold=true
-# fi
-# EOF
-#     t_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SESSION_TOKEN_hold')
-#     t_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SESSION_TOKEN_hold')
-#     t_cleanup_statements+=('${__t_v_aws_as_have_AWS_SESSION_TOKEN_hold} && AWS_SESSION_TOKEN=${__t_v_aws_as_AWS_SESSION_TOKEN_hold}')
-
-
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_cleanup () {
