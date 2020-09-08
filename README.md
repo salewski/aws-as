@@ -34,8 +34,9 @@ smooth over some of the rough points because no profile-naming scheme can be
 enforced within a team, or across teams.
 
 You want to work across tools, and the only thing that works everywhere is
-exporting some subset of the environment variables `AWS_PROFILE` (see above),
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`.
+exporting some subset of the environment variables `AWS_PROFILE` (see above
+note about profiles), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+`AWS_SESSION_TOKEN`.
 
 Everybody has their own scripting to deal with different subsets of the
 problem, in different ways, with varying degrees of success.
