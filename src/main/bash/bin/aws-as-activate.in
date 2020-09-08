@@ -478,61 +478,51 @@ else
 
     # FIXME: For our initial version, we are assuming we can use bashisms
 
-    ${CAT_PROG} - <<'EOF'
-declare -a __t_v_aws_as_cleanup_statements || {
-    printf '%s (error): was unable to declare array variable "__t_v_aws_as_cleanup_statements"; stopping\n' \
-           "${BASH_SOURCE[0]}" 1>&2
-    return 1
-}
-__t_v_aws_as_cleanup_statements=()
-
-# The last operation we will take will be to remove our array of cleanup
-# statements itself.
-__t_v_aws_as_cleanup_statements+=('unset __t_v_aws_as_cleanup_statements')
-
-function __t_f_aws_as_cleanup () {
-
-    local t_idx
-    local t_one_statement
-
-    let t_idx=${#__t_v_aws_as_cleanup_statements[@]}-1
-
-    # Note that we're running the cleanup statements in opposite order from
-    # which they were installed.
+    # We'll populate this list of cleanup statements as we build up the
+    # program, and then define a cleanup function with a static list of them
+    # at the end of the generated program.
     #
-    while test ${t_idx} -ge 0; do
+    # Rationale: In the name of security, we want to avoid using 'eval' in the
+    # cleanup function installed into the user's current shell environment. We
+    # could define our variables as read-only, but then we would be forcing
+    # the user to jump in and out of subshell when switch AWS profiles. OTOH,
+    # if we use an in-process array of cleanup statements and do not make it
+    # read-only, then there is no way to prevent malicious futzing with it
+    # before we 'eval' the statements it contains.
+    #
+    # Instead, we can handle the registration of the static cleanup statements
+    # here in the generating program, and then install a function with a
+    # static definition of each of the cleanup statements in reverse
+    # order. This is safer than using 'eval', and only slightly less
+    # convenient here. We do still still get to keep most of the convenience
+    # of registering the statements individually where the relevant code is
+    # introduced.
+    #
+    # HINT: To create "spacer lines" in the generated cleanup function (to
+    #       help keep the function readable, and also keep groups of related
+    #       statements grouped together), use the ':' command.
+    #
+    declare -a t_cleanup_statements=()
 
-        t_one_statement="${__t_v_aws_as_cleanup_statements[${t_idx}]}"
-
-        test -n "${t_one_statement}" && eval "${t_one_statement}"
-        #
-        # Ignore any errors (what could we do about it?), and keep going. It
-        # is better to potentially leave one unintended artifact in the
-        # environment than "all the rest".
-
-        let t_idx=${t_idx}-1
-    done
-}
-__t_v_aws_as_cleanup_statements+=('unset -f __t_f_aws_as_cleanup')
-
-__t_v_aws_as_cleanup_statements+=('unset -f aws-as-deactivate')
-function aws-as-deactivate () {
-    __t_f_aws_as_cleanup
-}
-
+    "${CAT_PROG}" - <<'EOF'
 __t_v_aws_as_PS1_hold=
 __t_v_aws_as_have_PS1_hold=false
 if test "${PS1:+is_set}" = 'is_set'; then
     __t_v_aws_as_PS1_hold=$PS1
     __t_v_aws_as_have_PS1_hold=true
 fi
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_PS1_hold')
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_PS1_hold')
-__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_PS1_hold} && PS1=${__t_v_aws_as_PS1_hold}')
+EOF
+    t_cleanup_statements+=('unset -v __t_v_aws_as_PS1_hold')
+    t_cleanup_statements+=('unset -v __t_v_aws_as_have_PS1_hold')
+    t_cleanup_statements+=('${__t_v_aws_as_have_PS1_hold} && PS1=${__t_v_aws_as_PS1_hold}')
 
-__t_v_aws_as_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE')
+    t_cleanup_statements+=(':')
+
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_PS1')
+    "${CAT_PROG}" - <<'EOF'
+
 __T_V_AWS_AS_PROFILE='-'
-__t_v_aws_as_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_PS1')
 function __t_f_aws_as_maybe_update_PS1 () {
     if test "${PS1:+is_set}" = 'is_set'; then
         PS1='('"${__T_V_AWS_AS_PROFILE}"') '"${__t_v_aws_as_PS1_hold}"
@@ -547,52 +537,109 @@ __t_f_aws_as_maybe_update_PS1
 #        usage. We are careful to keep track of them, though, and restore
 #        the "as found" value to what they were originally when the user
 #        invokes 'aws-as-deactivate'.
+EOF
 
-__t_v_aws_as_AWS_PROFILE_hold=
-__t_v_aws_as_have_AWS_PROFILE_hold=false
-if test "${AWS_PROFILE:+is_set}" = 'is_set'; then
-    __t_v_aws_as_AWS_PROFILE_hold=$AWS_PROFILE
-    __t_v_aws_as_have_AWS_PROFILE_hold=true
+    for vname in \
+        'AWS_PROFILE' \
+        'AWS_ACCESS_KEY_ID' \
+        'AWS_SECRET_ACCESS_KEY' \
+        'AWS_SESSION_TOKEN'; do
+
+        "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
+
+__t_v_aws_as_${vname}_hold=
+__t_v_aws_as_have_${vname}_hold=false
+if test "\${${vname}:+is_set}" = 'is_set'; then
+    __t_v_aws_as_${vname}_hold=\$${vname}
+    __t_v_aws_as_have_${vname}_hold=true
 fi
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_PROFILE_hold')
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_PROFILE_hold')
-__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_PROFILE_hold} && AWS_PROFILE=${__t_v_aws_as_AWS_PROFILE_hold}')
+EOF
+        t_cleanup_statements+=(':')
+        t_cleanup_statements+=('unset -v __t_v_aws_as_'"${vname}"'_hold')
+        t_cleanup_statements+=('unset -v __t_v_aws_as_have_'"${vname}"'_hold')
+        t_cleanup_statements+=('${__t_v_aws_as_have_'"${vname}"'_hold} && '"${vname}"'=${__t_v_aws_as_'"${vname}"'_hold}')
+    done
 
 
-__t_v_aws_as_AWS_ACCESS_KEY_ID_hold=
-__t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=false
-if test "${AWS_ACCESS_KEY_ID:+is_set}" = 'is_set'; then
-    __t_v_aws_as_AWS_ACCESS_KEY_ID_hold=$AWS_ACCESS_KEY_ID
-    __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=true
-fi
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_ACCESS_KEY_ID_hold')
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold')
-__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold} && AWS_ACCESS_KEY_ID=${__t_v_aws_as_AWS_ACCESS_KEY_ID_hold}')
+#     "${CAT_PROG}" - <<'EOF'
+# __t_v_aws_as_AWS_ACCESS_KEY_ID_hold=
+# __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=false
+# if test "${AWS_ACCESS_KEY_ID:+is_set}" = 'is_set'; then
+#     __t_v_aws_as_AWS_ACCESS_KEY_ID_hold=$AWS_ACCESS_KEY_ID
+#     __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold=true
+# fi
+# EOF
+#     t_cleanup_statements+=('unset -v __t_v_aws_as_AWS_ACCESS_KEY_ID_hold')
+#     t_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold')
+#     t_cleanup_statements+=('${__t_v_aws_as_have_AWS_ACCESS_KEY_ID_hold} && AWS_ACCESS_KEY_ID=${__t_v_aws_as_AWS_ACCESS_KEY_ID_hold}')
 
 
-__t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=
-__t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=false
-if test "${AWS_SECRET_ACCESS_KEY:+is_set}" = 'is_set'; then
-    __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=$AWS_SECRET_ACCESS_KEY
-    __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=true
-fi
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold')
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold')
-__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold} && AWS_SECRET_ACCESS_KEY=${__t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold}')
+#     "${CAT_PROG}" - <<'EOF'
+# __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=
+# __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=false
+# if test "${AWS_SECRET_ACCESS_KEY:+is_set}" = 'is_set'; then
+#     __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold=$AWS_SECRET_ACCESS_KEY
+#     __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold=true
+# fi
+# EOF
+#     t_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold')
+#     t_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold')
+#     t_cleanup_statements+=('${__t_v_aws_as_have_AWS_SECRET_ACCESS_KEY_hold} && AWS_SECRET_ACCESS_KEY=${__t_v_aws_as_AWS_SECRET_ACCESS_KEY_hold}')
 
 
-__t_v_aws_as_AWS_SESSION_TOKEN_hold=
-__t_v_aws_as_have_AWS_SESSION_TOKEN_hold=false
-if test "${AWS_SESSION_TOKEN:+is_set}" = 'is_set'; then
-    __t_v_aws_as_AWS_SESSION_TOKEN_hold=$AWS_SESSION_TOKEN
-    __t_v_aws_as_have_AWS_SESSION_TOKEN_hold=true
-fi
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SESSION_TOKEN_hold')
-__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SESSION_TOKEN_hold')
-__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_AWS_SESSION_TOKEN_hold} && AWS_SESSION_TOKEN=${__t_v_aws_as_AWS_SESSION_TOKEN_hold}')
+#     "${CAT_PROG}" - <<'EOF'
+# __t_v_aws_as_AWS_SESSION_TOKEN_hold=
+# __t_v_aws_as_have_AWS_SESSION_TOKEN_hold=false
+# if test "${AWS_SESSION_TOKEN:+is_set}" = 'is_set'; then
+#     __t_v_aws_as_AWS_SESSION_TOKEN_hold=$AWS_SESSION_TOKEN
+#     __t_v_aws_as_have_AWS_SESSION_TOKEN_hold=true
+# fi
+# EOF
+#     t_cleanup_statements+=('unset -v __t_v_aws_as_AWS_SESSION_TOKEN_hold')
+#     t_cleanup_statements+=('unset -v __t_v_aws_as_have_AWS_SESSION_TOKEN_hold')
+#     t_cleanup_statements+=('${__t_v_aws_as_have_AWS_SESSION_TOKEN_hold} && AWS_SESSION_TOKEN=${__t_v_aws_as_AWS_SESSION_TOKEN_hold}')
 
+
+    "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aws_as_cleanup () {
+
+    # Ignore any errors from the cleanup statements (what could we do
+    # about them, anyway?), and keep going. It is better to potentially
+    # leave one unintended artifact in the environment than "all the rest".
 
 EOF
+    let t_idx=${#t_cleanup_statements[@]}-1
+
+    # Note that we're running the cleanup statements in opposite order from
+    # which they were registered.
+    #
+    while test ${t_idx} -ge 0; do
+
+        t_one_statement="${t_cleanup_statements[${t_idx}]}"
+
+        if test -n "${t_one_statement}"; then
+            "$CAT_PROG" - <<EOF  # Note: unlike the above, /these/ heredoc statements get interpolated
+    ${t_one_statement}
+EOF
+        fi
+        let t_idx=${t_idx}-1
+    done
+    "$CAT_PROG" - <<'EOF'
+
+    # The very last statements in our cleanup function are the deletion
+    # of the user-facing 'aws-as-deactivate' "command" (defined below)
+    # and our cleanup function itself.
+    #
+    unset -f aws-as-deactivate
+    unset -f __t_f_aws_as_cleanup
+}
+
+function aws-as-deactivate () {
+    __t_f_aws_as_cleanup
+}
+EOF
+
 
 fi
 
