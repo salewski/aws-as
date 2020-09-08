@@ -560,6 +560,86 @@ EOF
         t_cleanup_statements+=('${__t_v_aws_as_have_'"${vname}"'_hold} && '"${vname}"'=${__t_v_aws_as_'"${vname}"'_hold}')
     done
 
+
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -f aws-as')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROG')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
+
+    # Design note: To the extent possible, the user-facing 'aws-as' function
+    # should feel like a normal command to the end-user.
+    #
+    "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
+
+__T_V_AWS_AS_PROG='aws-as'
+
+__t_f_aws_as_print_help () {
+
+    cat <<EODEF
+usage: \$__T_V_AWS_AS_PROG { -h | --help }
+  or:  \$__T_V_AWS_AS_PROG { -V | --version }
+  or:  \$__T_V_AWS_AS_PROG [OPTION...] AWS_CLI_PROFILE
+
+Switch to specified profile, authenticating with MFA, if necessary.
+
+  -h, --help     Print this help message on stdout
+  -V, --version  Print the version of the program on stdout
+
+Report bugs to $MAINTAINER.
+EODEF
+}
+
+__t_f_aws_as_print_version () {
+    cat <<EODEF
+\${__T_V_AWS_AS_PROG} ${gl_const_release}
+
+Copyright (C) ${COPYRIGHT_DATES} Alan D. Salewski <salewski@att.net>
+License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Alan D. Salewski.
+EODEF
+}
+EOF
+
+    "${CAT_PROG}" - <<'EOF'
+
+function aws-as () {
+
+    if test $# -lt 1; then
+        printf "${__T_V_AWS_PROG} (error): AWS_CLI_PROFILE parameter missing; bailing out\n" 1>&2
+        __t_f_aws_as_print_help 1>&2
+        return 1
+    fi
+    if test $# -gt 1; then
+        printf "${__T_V_AWS_PROG} (error): too many parameters (expected one, but got %d); bailing out\n" "$#" 1>&2
+        __t_f_aws_as_print_help 1>&2
+        return 1
+    fi
+
+    local t_profile_name
+
+    case $1 in
+        '--help' | '-h')
+            __t_f_aws_as_print_help
+            return 0
+            ;;
+
+        '--version' | '-V')
+            __t_f_aws_as_print_version
+            return 0
+            ;;
+
+        *)
+            t_profile_name=$1
+            ;;
+    esac
+}
+EOF
+
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_cleanup () {
