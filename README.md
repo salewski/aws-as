@@ -26,8 +26,8 @@ be done via IAM Users or Roles that have authenticated using
 incompatibilities because MFA support in the various tools is hit or miss.
 
 You can live with one-time pain of MFA authenticating a single User or Role,
-but when you need to switch between Roles in multiple accounts it becomes too
-cumbersome for use.
+but when you need to switch between Roles in multiple accounts it quickly
+becomes too cumbersome for use.
 
 The `aws-cli` "profiles" cannot be directly leveraged in a general way to
 smooth over some of the rough points because no profile-naming scheme can be
