@@ -1,6 +1,6 @@
 # aws-as
 
-Think venv for AWS IAM identities, and you're on the right track.
+Think "venv for AWS IAM identities", and you're on the right track.
 
 Allows you to express within a given shell, "I now want to interact with AWS
 *as* `${iam_user_or_role}`." Temporary credentials are cached, even for IAM
