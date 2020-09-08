@@ -45,7 +45,7 @@ problem, in different ways, with varying degrees of success.
 ## Tools we care about most
 
    * [aws-cli][aws-cli-gh]
-   * [AWS Go SDK][aws-go-sdk-gh]  (what [terraform-provider-aws][tf-prov-aws-gh] uses for AWS API calls)
+   * [AWS Go SDK][aws-sdk-go-gh]  (what [terraform-provider-aws][tf-prov-aws-gh] uses for AWS API calls)
    * [terraform][terraform-gh]    (especially [terraform-provider-aws][tf-prov-aws-gh])
 
 
@@ -221,7 +221,7 @@ removing all of the `aws-as` gunk. Something like this:
 
 [Aws-cli-gh]:     https://github.com/aws/aws-cli          "GitHub repo: aws/aws-cli"
 [aws-cli-site]:   https://aws.amazon.com/cli/             "AWS command line interface"
-[aws-go-sdk-gh]:  https://github.com/aws/aws-go-sdk       "GitHub repo: aws/aws-go-sdk"
+[aws-sdk-go-gh]:  https://github.com/aws/aws-sdk-go       "GitHub repo: aws/aws-go-sdk"
 [terraform-gh]:   https://github.com/hashicorp/terraform  "GitHub repo: hashicorp/terraform"
 
 [tf-prov-aws-gh]:  https://github.com/terraform-providers/terraform-provider-aws  "GitHub repo: terraform-providers/terraform-provider-aws"
