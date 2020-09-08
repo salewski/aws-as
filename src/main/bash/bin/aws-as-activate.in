@@ -14,7 +14,10 @@
 #
 # Usage:
 #
-#     $ eval $(aws-as-activate -s)
+#     $ eval "$(aws-as-activate -s)"
+#
+# CAREFUL: The double-quotes around the command are important in order to
+#          avoid the shell emitting a syntax error.
 #
 #
 # Once "installed" in the user's shell, all traces of the funcationality can
@@ -52,7 +55,7 @@ TRACING=false      # enable with three or more '-v' (--verbose) opts
 # particular tool by setting an environment variable named after the tool
 # (with hyphen chars changed to underscores).
 
-CAT_PROG="${CAT:-@CAT_PROG@}"
+CAT_PROG="${CAT:-@CAT@}"
 
 
 opt_target_csh=false  # enable with -c  (or by a $SHELL that looks like a csh style shell)
@@ -475,7 +478,68 @@ else
 
     # FIXME: For our initial version, we are assuming we can use bashisms
 
-    ${CAT_PROG} - <<EOF
+    ${CAT_PROG} - <<'EOF'
+declare -a __t_v_aws_as_cleanup_statements || {
+    printf '%s (error): was unable to declare array variable "__t_v_aws_as_cleanup_statements"; stopping\n' \
+           "${BASH_SOURCE[0]}" 1>&2
+    return 1
+}
+__t_v_aws_as_cleanup_statements=()
+
+# The last operation we will take will be to remove our array of cleanup
+# statements itself.
+__t_v_aws_as_cleanup_statements+=('unset __t_v_aws_as_cleanup_statements')
+
+function __t_f_aws_as_cleanup () {
+
+    local t_idx
+    local t_one_statement
+
+    let t_idx=${#__t_v_aws_as_cleanup_statements[@]}-1
+
+    # Note that we're running the cleanup statements in opposite order from
+    # which they were installed.
+    #
+    while test ${t_idx} -ge 0; do
+
+        t_one_statement="${__t_v_aws_as_cleanup_statements[${t_idx}]}"
+
+        test -n "${t_one_statement}" && eval "${t_one_statement}"
+        #
+        # Ignore any errors (what could we do about it?), and keep going. It
+        # is better to potentially leave one unintended artifact in the
+        # environment than "all the rest".
+
+        let t_idx=${t_idx}-1
+    done
+}
+__t_v_aws_as_cleanup_statements+=('unset -f __t_f_aws_as_cleanup')
+
+__t_v_aws_as_cleanup_statements+=('unset -f aws-as-deactivate')
+function aws-as-deactivate () {
+    __t_f_aws_as_cleanup
+}
+
+__t_v_aws_as_ps1_hold=
+__t_v_aws_as_have_ps1_hold=false
+if test "${PS1:+is_set}" = 'is_set'; then
+    __t_v_aws_as_ps1_hold=$PS1
+    __t_v_aws_as_have_ps1_hold=true
+fi
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_ps1_hold')
+__t_v_aws_as_cleanup_statements+=('unset -v __t_v_aws_as_have_ps1_hold')
+__t_v_aws_as_cleanup_statements+=('${__t_v_aws_as_have_ps1_hold} && PS1=${__t_v_aws_as_ps1_hold}')
+
+__t_v_aws_as_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE')
+__T_V_AWS_AS_PROFILE='-'
+__t_v_aws_as_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_ps1')
+function __t_f_aws_as_maybe_update_ps1 () {
+    if test "${PS1:+is_set}" = 'is_set'; then
+        PS1='('"${__T_V_AWS_AS_PROFILE}"') '"${__t_v_aws_as_ps1_hold}"
+    fi
+}
+__t_f_aws_as_maybe_update_ps1
+
 EOF
 
 fi
@@ -525,8 +589,8 @@ exit 0;
   aws-as-activate --help
   aws-as-activate --version
 
-  eval $(aws-as-activate -s)
-  eval $(aws-as-activate -c)
+  eval "$(aws-as-activate -s)"
+  eval "$(aws-as-activate -c)"
 
 
 =head1 DESCRIPTION
@@ -537,7 +601,8 @@ The C<aws-as-activate> program emits a handful of shell function definitions
 and related metadata variables on stdout. These shell constructs provide the
 L<aws-as(1)> command (really a shell function) for the current shell. The user
 must C<eval> the output in order for the functionality to take effect in the
-current shell.
+current shell. The output must be quoted in order to be fed to C<eval> as a
+single chunk and to otherwise avoid the shell emitting a syntax error.
 
 Once "installed" in the user's shell, all traces of the funcationality can be
 removed by the installed L<aws-as-deactivate(1)> function.
