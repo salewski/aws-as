@@ -59,10 +59,8 @@ TRACING=false      # enable with three or more '-v' (--verbose) opts
 #CAT_PROG="${CAT:-/usr/bin/cat}"
 
 
-# #FIXME go: adjust to suite
-# opt_do_foo=false
-# example_thingy_val=
-# #FIXME end: adjust to suite
+opt_target_csh=false  # enable with -c  (or by a $SHELL that looks like a csh style shell)
+opt_target_sh=false   # enable with -s  (or by a $SHELL that does not look like a csh style shell)
 
 
 declare -a F_CLEANUP_HOOK_NAMES=()
@@ -112,7 +110,6 @@ trap 'printf "$PROG (warn): QUIT signal caught; bailing out\n" 1>&2; f_cleanup_a
 trap 'printf "$PROG (warn): TERM signal caught; bailing out\n" 1>&2; f_cleanup_and_die' TERM
 
 trap 'f_cleanup' EXIT
-
 
 
 f_print_help () {
@@ -332,18 +329,33 @@ if test $# -gt 0; then
                 ;;
 
 
-#FIXME: implement -c (--csh)
             'csh' | 'c' )
+                if $opt_target_sh; then
+                    printf "${PROG} (error): opt -c (--csh) is mutually exclusive with -s (--sh); bailing out\n" 1>&2
+                    f_print_help 1>&2
+                    exit 1
+                fi
+                opt_target_csh=true
+
+#FIXME: implement -c (--csh)
                 printf "${PROG} (WIP): -c (--csh) feature not yet implemented; bailing out\n" 1>&2
                 f_print_help 1>&2
                 exit 1
                 ;;
 
-#FIXME: implement -s (--sh)
+
             'sh' | 's' )
-                printf "${PROG} (WIP): -c (--csh) feature not yet implemented; bailing out\n" 1>&2
-                f_print_help 1>&2
-                exit 1
+                if $opt_target_csh; then
+                    printf "${PROG} (error): opt -s (--sh) is mutually exclusive with -c (--csh); bailing out\n" 1>&2
+                    f_print_help 1>&2
+                    exit 1
+                fi
+                opt_target_sh=true
+
+#FIXME: implement -s (--sh)
+                # printf "${PROG} (WIP): -s (--sh) feature not yet implemented; bailing out\n" 1>&2
+                # f_print_help 1>&2
+                # exit 1
                 ;;
 
 
@@ -434,6 +446,34 @@ if test $# -gt 0; then
     printf "${PROG} (error): unrecognized command line parameters (noted below); bailing out\n    %s\n" "$*" 1>&2
     exit 1
 fi
+
+
+if $opt_target_sh \
+|| $opt_target_csh; then :; else
+
+    # User did not specify either -s or -c option. We'll try to auto-detect
+    # the user's shell from the $SHELL environment variable. If it looks like
+    # a csh-style shell, then that's what we'll use. Otherwise we'll assume a
+    # Bourne-style shell.
+    #
+    # Note: This approach of checking the last three characters of the name is
+    #       borrowed from the ssh-agent(1), as shipped with OpenBSD's OpenSSH.
+    #
+    if test "${#SHELL}" -gt 2; then
+        if [[ "${SHELL}" =~ .*csh$ ]]; then
+            opt_target_csh=true
+        fi
+    fi
+fi
+
+# FIXME: implement support for csh
+if $opt_target_csh; then
+    printf "${PROG} (WIP): csh support not yet implemented; bailing out\n" 1>&2
+    exit 1
+fi
+
+exit 77
+
 
 # FIXME: implement meat
 
@@ -528,6 +568,9 @@ B<WIP: This feature is not currently implemented>
 Generate C-shell commands on stdout. This is the default if C<SHELL> looks
 like it is a csh style of shell.
 
+This option is mutually exclusive with C<-s> (C<--sh>); only one or the other
+may be provided.
+
 
 =item -s, --sh
 
@@ -535,6 +578,9 @@ B<WIP: This feature is not currently implemented>
 
 Generate Bourne shell commands on stdout. This is the default if C<SHELL> does
 not look like it is a csh style of shell.
+
+This option is mutually exclusive with C<-c> (C<--csh>); only one or the other
+may be provided.
 
 
 =item -v, --verbose
