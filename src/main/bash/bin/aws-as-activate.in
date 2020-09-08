@@ -129,15 +129,16 @@ Generate aws-as command (and related) on stdout
 
 WIP: Options with an asterisk (*) are placeholders for features not yet implemented
 
-  -h, --help                     Print this help message on stdout
-  -V, --version                  Print the version of the program on stdout
-* -c, --csh                      Generate C-shell commands on stdout. This is the default if
-                                   SHELL looks like it's a csh style of shell.
-  -s, --sh                       Generate Bourne shell commands on stdout. This is the default if
-                                   SHELL does not look like it's a csh style of shell.
-  -v, --verbose                  Tell what is being done. Two or more -v options turns on tracing (set -x)
-      --                         Signals the end of options and disables further options processing. Any
-                                   remaining arguments will cause an error to be emitted.
+  -h, --help     Print this help message on stdout
+  -V, --version  Print the version of the program on stdout
+* -c, --csh      Generate C-shell commands on stdout. This is the default if
+                   SHELL looks like it's a csh style of shell.
+  -s, --sh       Generate Bourne shell commands on stdout. This is the default if
+                   SHELL does not look like it's a csh style of shell.
+  -v, --verbose  Print program progress messages on stderr. Specify multiple
+                   times to increase verbosity: info, debug, and tracing (set -x)
+      --         Signals the end of options and disables further options processing. Any
+                   remaining arguments will cause an error to be emitted.
 
 Report bugs to $MAINTAINER.
 EOF
@@ -569,7 +570,9 @@ EOF
         'AWS_PROFILE' \
         'AWS_ACCESS_KEY_ID' \
         'AWS_SECRET_ACCESS_KEY' \
-        'AWS_SESSION_TOKEN'; do
+        'AWS_SESSION_TOKEN' \
+        \
+        'AWS_ROLE_SESSION_NAME'; do
 
         "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
@@ -581,6 +584,7 @@ if test "\${${vname}:+is_set}" = 'is_set'; then
     unset ${vname}
 fi
 EOF
+
         t_cleanup_statements+=(':')
         t_cleanup_statements+=('unset -v __t_v_aws_as_'"${vname}"'_hold')
         t_cleanup_statements+=('unset -v __t_v_aws_as_have_'"${vname}"'_hold')
@@ -632,8 +636,15 @@ EOF
     t_cleanup_statements+=('unset -f aws-as')
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROG')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_BE_VERBOSE')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_DEBUGGING')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_TRACING')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_main')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_reset_dashv_flags')
     t_cleanup_statements+=('unset -f __t_f_aws_as_clear_out_profile')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as')
 
@@ -644,17 +655,36 @@ EOF
 
 __T_V_AWS_AS_PROG='aws-as'
 
+__T_V_AWS_AS_BE_VERBOSE=false
+__T_V_AWS_AS_DEBUGGING=false
+__T_V_AWS_AS_TRACING=false
+
+__t_f_aws_as_reset_dashv_flags () {
+    __T_V_AWS_AS_BE_VERBOSE=false
+    __T_V_AWS_AS_DEBUGGING=false
+    __T_V_AWS_AS_TRACING=false
+    return 0
+}
+
 __t_f_aws_as_print_help () {
 
     cat <<EODEF
 usage: \$__T_V_AWS_AS_PROG { -h | --help }
   or:  \$__T_V_AWS_AS_PROG { -V | --version }
-  or:  \$__T_V_AWS_AS_PROG [OPTION...] AWS_CLI_PROFILE
+  or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] AWS_CLI_PROFILE
 
 Switch to specified profile, authenticating with MFA, if necessary.
 
+CAREFUL: Bundling of short-form options is not (yet?) supported.
+
   -h, --help     Print this help message on stdout
   -V, --version  Print the version of the program on stdout
+
+  -v, --verbose  Print program progress messages on stderr. Specify multiple
+                   times to increase verbosity: info, debug, and tracing (set -x)
+
+      --         Signals the end of options and disables further options processing.
+                   Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
 
 Report bugs to $MAINTAINER.
 EODEF
@@ -780,6 +810,35 @@ function __t_f_aws_as_try_set_profile_as () {
         local t_mfa_serial=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'mfa_serial')
         local t_role_sessn=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'role_session_name')
 
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): mfa_serial from aws-cli config: '%s'\n" "${t_mfa_serial}" 1>&2
+            printf "${__T_V_AWS_AS_PROG} (debug): role_session_name from aws-cli config: '%s'\n" "${t_role_sessn}" 1>&2
+        fi
+
+        # If the role session name from the aws-cli config is not set, then we
+        # might still be able to locate the cache file. If we need to force an
+        # authentication event for it though (assume-role), we are forced to
+        # provide a role session name. We could make one up, or even accept
+        # one on the 'aws-as' command line, but for our purposes of hopping
+        # between sets of cached credentials it is better for the role session
+        # name to come from the config file -- that provides the most reuse
+        # (because it impacts the name aws-cli uses for the cache file).
+        #
+        # For now, we'll force the user to set the value in the config file
+        # section for the profile.
+        #
+        # FIXME: In the future, maybe support a '--role-session-name' config
+        #        line opt for 'aws-as' for special purpose overriding of our
+        #        default behavior.
+        #
+        if test -z "${t_role_sessn}"; then
+            {
+                printf "${__T_V_AWS_AS_PROG} (error): profile has no 'role_session_name' configured\n"
+                printf "    HINT: aws --profile '%s' configure set 'role_session_name' 'SOME-LABEL'\n" "${t_profile_name}"
+            } 1>&2
+            return 1
+        fi
+
         # This is how aws-cli does it (kinda). Not part of their public
         # API, so this approach is subject to change on us at any time.
         # Note that the keys are alphabetically sorted; order here matters.
@@ -807,12 +866,47 @@ else:
             return 1
         fi
 
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): generated cache file key for role is '%s'\n" "${t_cachefile_key}" 1>&2
+        fi
+
 # FIXME: AL.DEBUG working here
         local t_fpath="${HOME}/.aws/cli/cache/${t_cachefile_key}.json"
-        if test -e "${t_fpath}"; then
-            printf 'ALDEBUG: cache file exists: %s\n' "${t_fpath}"
-        else
-            printf 'ALDEBUG: cache file DOES NOT exists: %s\n' "${t_fpath}"
+
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): cache filepath is '%s'\n" "${t_fpath}" 1>&2
+        fi
+
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            if test -e "${t_fpath}"; then
+               printf "${__T_V_AWS_AS_PROG} (debug): cache file exists: '%s'\n" "${t_fpath}" 1>&2
+            else
+               printf "${__T_V_AWS_AS_PROG} (debug): cache file does not (yet) exist: '%s'\n" "${t_fpath}" 1>&2
+            fi
+        fi
+
+        if test -e "${t_fpath}"; then :; else
+
+            # If the aws-cli cache file was not found for a given Role-base
+            # profile, then one of the following may be true:
+            #
+            #     1. the profile has never been used (maybe because it is
+            #        new, or the user has changed its configuration in such
+            #        a way that its SHA-1 has has changed)
+            #
+            #     2. the cache file was deleted (for whatever reason)
+            #
+            #     3. some future version of the aws-cli program started using
+            #        a different approach to producing the SHA-1 hashes, and
+            #        this code is no longer in alignment with what it is doing
+            #
+            #     4. ???
+            #
+            # We'll force an authentication event for the profile, and then
+            # check again.
+            #
+#            local t_assume_role_json_output=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" sts assume-role 'role_session_name')
+            :
         fi
     fi
 
@@ -824,36 +918,100 @@ else:
     return 0
 }
 
-function aws-as () {
-
-    if test $# -lt 1; then
-        printf "${__T_V_AWS_AS_PROG} (error): AWS_CLI_PROFILE parameter missing; bailing out\n" 1>&2
-        __t_f_aws_as_print_help 1>&2
-        return 1
-    fi
-    if test $# -gt 1; then
-        printf "${__T_V_AWS_AS_PROG} (error): too many parameters (expected one, but got %d); bailing out\n" "$#" 1>&2
-        __t_f_aws_as_print_help 1>&2
-        return 1
-    fi
+function __t_f_aws_as_main () {
 
     local t_profile_name
+    local t_profile_name_provided=false
 
-    case $1 in
-        '--help' | '-h')
-            __t_f_aws_as_print_help
-            return 0
-            ;;
+    while test $# -gt 0; do
+        case $1 in
+            '--help' | '-h')
+                __t_f_aws_as_print_help
+                return 0
+                ;;
 
-        '--version' | '-V')
-            __t_f_aws_as_print_version
-            return 0
-            ;;
+            '--version' | '-V')
+                __t_f_aws_as_print_version
+                return 0
+                ;;
 
-        *)
+            '--verbose' | '-v' )
+                if ${__T_V_AWS_AS_BE_VERBOSE}; then
+
+                    if ${__T_V_AWS_AS_DEBUGGING}; then
+
+                        # We've seen at least two -v opt before, so now we're
+                        # turning tracing on.
+
+                        if ${__T_V_AWS_AS_TRACING}; then
+                            : $PROG \(trace: $LINENO\): tracing already enabled
+                        else
+                            # Enable tracking before setting our app-level
+                            # ${__T_V_AWS_AS_TRACING} flag so that setting it
+                            # is the first thing that appears in the trace.
+                            set -x
+                            __T_V_AWS_AS_TRACING=true
+                        fi
+                    else
+                        # Second -v opt we're seeing
+                        __T_V_AWS_AS_DEBUGGING=true
+                        # Just to give a warm and fuzzy...
+                        printf "${__T_V_AWS_AS_PROG} (debug): debug-level output enabled\n" 1>&2
+                    fi
+                else
+                    # First -v opt we're seeing
+                    __T_V_AWS_AS_BE_VERBOSE=true
+                fi
+                shift
+                ;;
+
+
+            '--')
+                shift
+                break
+                ;;
+
+            *)
+                if [[ "$1" =~ ^[-].* ]]; then
+                    printf "${__T_V_AWS_AS_PROG} (error): unrecognized option \"%s\"; bailing out\n" "${1}" 1>&2
+                    __t_f_aws_as_print_help 1>&2
+                    return 1
+                fi
+                if ${t_profile_name_provided}; then
+                    printf "${__T_V_AWS_AS_PROG} (error): too many AWS_CLI_PROFILE parameters provided (\"%s\"); bailing out\n" "${1}" 1>&2
+                    __t_f_aws_as_print_help 1>&2
+                    return 1
+                fi
+                t_profile_name=$1
+                t_profile_name_provided=true
+                shift
+                ;;
+        esac
+    done
+
+    if ${t_profile_name_provided}; then
+        if test $# -gt 1; then
+            printf "${__T_V_AWS_AS_PROG} (error): have %d unrecognized parameters (%s); bailing out\n" "$#" "$@" 1>&2
+            __t_f_aws_as_print_help 1>&2
+            return 1
+        fi
+    else
+        if test $# -gt 0; then
             t_profile_name=$1
-            ;;
-    esac
+            t_profile_name_provided=true
+            shift
+        elif test $# -lt 1; then
+            printf "${__T_V_AWS_AS_PROG} (error): AWS_CLI_PROFILE parameter missing; bailing out\n" 1>&2
+            __t_f_aws_as_print_help 1>&2
+            return 1
+        fi
+
+        if test $# -gt 1; then
+            printf "${__T_V_AWS_AS_PROG} (error): have %d unrecognized parameters (%s); bailing out\n" "$#" "$@" 1>&2
+            __t_f_aws_as_print_help 1>&2
+            return 1
+        fi
+    fi
 
     if test "${t_profile_name}" = '-'; then
         __t_f_aws_as_clear_out_profile
@@ -867,6 +1025,34 @@ function aws-as () {
     fi
 
     return 0
+}
+
+function aws-as () {
+    local t_rstat
+    local t_xtrace_was_enabled=false
+    case $- in
+        *x*)
+            t_xtrace_was_enabled=true
+            ;;
+        *)  # ignore
+            ;;
+    esac
+    __t_f_aws_as_main "$@"
+    t_rstat=$?
+
+    __t_f_aws_as_reset_dashv_flags
+
+    # If tracing was enabled during our run, we need to disable it again
+    # (unless it had already been enabled to begin with)
+    if [[ $- =~ .*x.* ]]; then
+        if $t_xtrace_was_enabled; then
+            : ${__T_V_AWS_AS_PROG} \(trace: $LINENO\): xtrace had previously been enabled -- no need to disable it
+        else
+            set +x
+        fi
+    fi
+
+    return $t_rstat
 }
 EOF
 
