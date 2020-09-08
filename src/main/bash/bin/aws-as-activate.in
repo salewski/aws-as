@@ -436,3 +436,159 @@ if test $# -gt 0; then
 fi
 
 # FIXME: implement meat
+
+if $BE_VERBOSE; then
+    printf "${PROG} (info): completed successfully\n" 1>&2
+fi
+
+exit 0;
+
+
+#
+# ----------------------------------------------------------------------------
+# Documentation
+#
+# The docs are in Perl's POD format, so you can run either the 'perldoc' or
+# 'pod2man' programs on this file to produce a man page.
+#
+# To generate a man page for distribution (in a tarball or RPM, for instance),
+# you'll probably want to run pod2man something like this:
+#
+#     $ pod2man /path/to/this/file \
+#               --center='aws-as' \
+#               --release='aws-as-0.1.0' \
+#               --section='1' \
+#               > /outputdir/aws-as-activate.1
+#
+# To inspect the page formatting, etc., you can pipe the above 'pod2man'
+# command to:
+#
+#     'man -l -'
+#
+# instead of redirecting the output to a file.
+#
+# ----------------------------------------------------------------------------
+
+=pod
+
+=head1 NAME
+
+  aws-as-activate - Generate aws-as command (and related) on stdout
+
+
+=head1 SYNOPSIS
+
+  aws-as-activate --help
+  aws-as-activate --version
+
+  eval $(aws-as-activate -s)
+  eval $(aws-as-activate -c)
+
+
+=head1 DESCRIPTION
+
+The C<aws-as-activate> program is part of the C<aws-as> project.
+
+The C<aws-as-activate> program emits a handful of shell function definitions
+and related metadata variables on stdout. These shell constructs provide the
+L<aws-as(1)> command (really a shell function) for the current shell. The user
+must C<eval> the output in order for the functionality to take effect in the
+current shell.
+
+Once "installed" in the user's shell, all traces of the funcationality can be
+removed by the installed L<aws-as-deactivate(1)> function.
+
+The user's C<$PS1> shell prompt variable will be augmented to indicate the
+currently active AWS profile. The original value for the varialbe is
+"remembered", and restored to its pristine state upon invoking the
+C<aws-as-deactivate> function.
+
+
+=head1 OPTIONS
+
+Below are the command line options currently accepted by C<aws-as-activate>.
+
+
+=over 4
+
+=item -h, --help
+
+Print help usage message
+
+
+=item -V, --version
+
+Print the version of the program to stdout and then exit.
+
+
+=item -c, --csh
+
+B<WIP: This feature is not currently implemented>
+
+Generate C-shell commands on stdout. This is the default if C<SHELL> looks
+like it is a csh style of shell.
+
+
+=item -s, --sh
+
+B<WIP: This feature is not currently implemented>
+
+Generate Bourne shell commands on stdout. This is the default if C<SHELL> does
+not look like it is a csh style of shell.
+
+
+=item -v, --verbose
+
+Turn on verbose mode. Causes program to emit messages on C<stderr> indicating
+what it is doing. The option may be specified multiple times to increase
+further the level of verbosity. One C<-v> option enables info-level output;
+two such opts enable debug-level output; three or more enable trace-level
+output.
+
+
+=item --
+
+Signals the end of options and disables further options processing.
+
+=back
+
+
+=head1 DIAGNOSTICS
+
+Exits with zero on success, non-zero on error.
+
+
+=head1 BUGS
+
+There are probably tons. If you find any, please report them as described in
+the C<BUGS> file.
+
+HINT: L<https://github.com/salewski/aws-as/issues>
+
+
+=head1 SEE ALSO
+
+=over 4
+
+=item aws-as(1)
+
+=item aws-as-deactivate(1)
+
+=back
+
+
+=head1 AUTHOR
+
+=over 4
+
+=item Alan D. Salewski  <salewski@att.net>
+
+=back
+
+
+=head1 COPYRIGHT
+
+Copyright 2020 Alan D. Salewski
+
+=cut
+
