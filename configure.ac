@@ -45,6 +45,19 @@ dnl +------------------------+
 dnl makes $(LN_S) available in our Makefile.am files
 AC_PROG_LN_S
 
+dnl XXX: I'm not sure whether or not there is a minimum version of python that
+dnl      will work for our embedded one-liner(s). For now, just hoping for the
+dnl      best with any version of Python 3. I suspect Python 2 will work, as
+dnl      well, but don't want to support it.
+dnl
+dnl      If you run into problems with a given version of python, please let
+dnl      us know.
+dnl
+dnl Note that this macro makes available the various PYTHON_* variables,
+dnl including 'PYTHON' (the path to the interpretter).
+dnl
+AM_PATH_PYTHON([3])
+
 dnl AC_PATH_PROG(AWK_PROG, awk)
 dnl if test -z "$AWK_PROG"; then
 dnl     AC_MSG_ERROR([awk not found])
@@ -276,6 +289,7 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]EXPR_PROG[@],$(EXPR_PROG),g'"'"' \
   -e '"'"'s,[@]JQ_PROG[@],$(JQ_PROG),g'"'"' \
   -e '"'"'s,[@]MKDIR_PROG[@],$(MKDIR_PROG),g'"'"' \
+  -e '"'"'s,[@]PYTHON[@],$(PYTHON),g'"'"' \
   -e '"'"'s,[@]SED[@],$(SED),g'"'"' \
 '
 ]
@@ -403,6 +417,7 @@ printf "                            jq: %s\n" "`__poor_mans_expand_file_name JQ_
 printf "                         mkdir: %s\n" "`__poor_mans_expand_file_name MKDIR_PROG`"
 printf "                          perl: %s\n" "`__poor_mans_expand_file_name PERL`"
 printf "                       pod2man: %s\n" "`__poor_mans_expand_file_name POD2MAN`"
+printf "                        python: %s\n" "`__poor_mans_expand_file_name PYTHON` (`__poor_mans_expand_file_name PYTHON_VERSION`)"
 printf "\n"
 
 

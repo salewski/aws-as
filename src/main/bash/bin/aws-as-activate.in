@@ -60,6 +60,8 @@ CHMOD_PROG="${CHMOD:-@CHMOD_PROG@}"
 MKDIR_PROG="${MKDIR:-@MKDIR_PROG@}"
 
 AWS_PROG="${AWS:-@AWS_PROG@}"
+JQ_PROG="${JQ:-@JQ_PROG@}"
+PYTHON3_PROG="${PYTHON:-@PYTHON@}"
 
 
 opt_target_csh=false  # enable with -c  (or by a $SHELL that looks like a csh style shell)
@@ -526,12 +528,16 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CHMOD_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_MKDIR_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PYTHON3_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_JQ_PROG')
 
     "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
 __T_V_AWS_AS_AWS_PROG='${AWS_PROG}'
 __T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
 __T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
+__T_V_AWS_AS_PYTHON3_PROG='${PYTHON3_PROG}'
+__T_V_AWS_AS_JQ_PROG='${JQ_PROG}'
 EOF
 
     # switch back to using non-interpolated heredoc
@@ -767,6 +773,46 @@ function __t_f_aws_as_try_set_profile_as () {
     if test $? -ne 0; then :; else
         if test -n "${t_role_arn}"; then
             t_profile_is_for_iam_role=true
+        fi
+    fi
+
+    if $t_profile_is_for_iam_role; then
+        local t_mfa_serial=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'mfa_serial')
+        local t_role_sessn=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'role_session_name')
+
+        # This is how aws-cli does it (kinda). Not part of their public
+        # API, so this approach is subject to change on us at any time.
+        # Note that the keys are alphabetically sorted; order here matters.
+        #
+        local t_cachefile_key=$("${__T_V_AWS_AS_PYTHON3_PROG}" -c '
+import sys; import json; from hashlib import sha1;
+arn = sys.argv[1];
+sn  = sys.argv[2];
+rsn = sys.argv[3];
+if len(rsn) > 0:
+    print( sha1( json.JSONEncoder().encode({"RoleArn": arn, "RoleSessionName": rsn, "SerialNumber": sn}).encode("utf-8") ).hexdigest() )
+else:
+    print( sha1( json.JSONEncoder().encode({"RoleArn": arn, "SerialNumber": sn}).encode("utf-8") ).hexdigest() )
+                                ' \
+                                "${t_role_arn}"   \
+                                "${t_mfa_serial}" \
+                                "${t_role_sessn}"
+                                )
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to generate cache file key for role\n" 1>&2
+            return 1
+        fi
+        if test -z "${t_cachefile_key}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): generated cache file key for role is empty(???)\n" 1>&2
+            return 1
+        fi
+
+# FIXME: AL.DEBUG working here
+        local t_fpath="${HOME}/.aws/cli/cache/${t_cachefile_key}.json"
+        if test -e "${t_fpath}"; then
+            printf 'ALDEBUG: cache file exists: %s\n' "${t_fpath}"
+        else
+            printf 'ALDEBUG: cache file DOES NOT exists: %s\n' "${t_fpath}"
         fi
     fi
 
