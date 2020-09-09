@@ -58,6 +58,7 @@ TRACING=false      # enable with three or more '-v' (--verbose) opts
 CAT_PROG="${CAT:-@CAT@}"
 CHMOD_PROG="${CHMOD:-@CHMOD_PROG@}"
 MKDIR_PROG="${MKDIR:-@MKDIR_PROG@}"
+XARGS_PROG="${XARGS:-@XARGS_PROG@}"
 
 AWS_PROG="${AWS:-@AWS_PROG@}"
 JQ_PROG="${JQ:-@JQ_PROG@}"
@@ -540,6 +541,7 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_MKDIR_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PYTHON3_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_JQ_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_XARGS_PROG')
 
     "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
@@ -548,6 +550,7 @@ __T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
 __T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
 __T_V_AWS_AS_PYTHON3_PROG='${PYTHON3_PROG}'
 __T_V_AWS_AS_JQ_PROG='${JQ_PROG}'
+__T_V_AWS_AS_XARGS_PROG='${XARGS_PROG}'
 EOF
 
     # switch back to using non-interpolated heredoc
@@ -731,17 +734,560 @@ function __t_f_aws_as_clear_out_profile () {
 }
 EOF
 
+    # For IAM Roles, we leverage the caching scheme implemented by aws-cli, so
+    # do not cache that type of temporary credential (from sts:AssumeRole)
+    # directly.
+
+    # For IAM Users, we do implement our own cache (because aws-cli does not
+    # provide one for that type of temporary credential (from
+    # sts:GetSessionToken). Our caching scheme is modeled on that provided by
+    # aws-cli for caching the Role creds, though, so if you understand one of
+    # them you basically understand both of them.
+    #
+    # Our IAM User creds cache is based on:
+    #
+    #     User ARN: the 'Arn' key provided by sts:GetCallerIdentity when invoked by an IAM User.
+    #
+    #     MFA Device Serial Number (if available), as obtained from 'aws configure get' for the profoile.
+    #
+    # To avoid repeated calls to sts:GetCallerIdentity, we maintain a mapping
+    # between aws-cli profile names and the User ARNs we've seen thus
+    # far. This makes switching back to a given User profile faster for us.
+
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROF_TO_UARN')  # "profile names to user-ARNs"
+    "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
+
+declare -A __T_V_AWS_AS_PROF_TO_UARN
+EOF
+
     "${CAT_PROG}" - <<'EOF'
 
 # Helper for __t_f_aws_as_try_set_profile_as()
 # @param: PROFILE (presumed validated)
 #
 function __t_f_aws_as_try_set_profile_as_for_user () {
-    : FIXME: ${FUNCNAME} not yet implemented
+
+    local t_profile_name
+    local t_user_arn
+    local t_mfa_serial
+
+    t_profile_name=$1
+
+    if test "${__T_V_AWS_AS_PROF_TO_UARN[${t_profile_name}]:+exists}"; then
+        t_user_arn=${__T_V_AWS_AS_PROF_TO_UARN[${t_profile_name}]}
+    else
+        # We'll have to ask sts:GetCallerIdentity for it, but we'll cache
+        # the answer for this profile so we do need to keep asking in the
+        # future.
+        #
+        local t_rsp
+        t_rsp=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" --output 'text' \
+                                       sts get-caller-identity \
+                                           --query 'Arn')
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): get-caller-identity failed for profile '%s'; stopping\n" "${t_profile_name}" 1>&2
+            return 1
+        fi
+        if test -z "${t_rsp}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): empty string output returned from get-caller-identity for profile '%s' (???); stopping\n" "${t_profile_name}" 1>&2
+            return 1
+        fi
+        t_user_arn=$t_rsp
+        unset t_rsp
+
+        __T_V_AWS_AS_PROF_TO_UARN["${t_profile_name}"]=${t_user_arn}  # cache User ARN
+    fi
+
+    # CAREFUL: Using 'aws_as_' prefixed custom key here, since the aws-cli
+    #          configuration does not directly support storing the MFA serial
+    #          number for non-Role profiles. If a profile has an 'mfa_serial'
+    #          key, then it is expected to have a 'role_arn' key, as well; you
+    #          will get an error if you have an 'mfa_serial' key in the section
+    #          for a non-Role profile.
+    #
+    #          However, the 'aws-cli configuration' subcommand is sufficiently
+    #          general that it /will/ allow us to store (nearly) arbitrary
+    #          key/value pairs in the file. We therefore claim the namespace
+    #          prefix "aws_as_" for keys related to 'aws-as'.
+    #
+    t_mfa_serial=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'aws_as_mfa_serial')
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (debug): t_user_arn is:   '%s'\n" "${t_user_arn}"   1>&2
+        printf "${__T_V_AWS_AS_PROG} (debug): t_mfa_serial is: '%s'\n" "${t_mfa_serial}" 1>&2
+    fi
+
+    # This is similar to what aws-cli creates the hashcodes used for the
+    # cached IAM Role creds.
+    #
+    # Note that the keys are alphabetically sorted; order here matters.
+    #
+    local t_cachefile_key=$("${__T_V_AWS_AS_PYTHON3_PROG}" -c '
+import sys; import json; from hashlib import sha1;
+arn = sys.argv[1];
+sn  = sys.argv[2];
+if len(sn) > 0:
+    print( sha1( json.JSONEncoder().encode({"Arn": arn, "SerialNumber": sn}).encode("utf-8") ).hexdigest() )
+else:
+    print( sha1( json.JSONEncoder().encode({"Arn": arn}).encode("utf-8") ).hexdigest() )
+                            ' \
+                            "${t_user_arn}"   \
+                            "${t_mfa_serial}" \
+                           )
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to generate cache file key for user\n" 1>&2
+        return 1
+    fi
+    if test -z "${t_cachefile_key}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): generated cache file key for user is empty(???)\n" 1>&2
+        return 1
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (debug): generated cache file key for user is '%s'\n" "${t_cachefile_key}" 1>&2
+    fi
+
+    local t_fpath="${__T_V_AWS_AS_CACHE_DIR}/${t_cachefile_key}.json"
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (debug): cache filepath is '%s'\n" "${t_fpath}" 1>&2
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        if test -e "${t_fpath}"; then
+            printf "${__T_V_AWS_AS_PROG} (debug): cache file exists: '%s'\n" "${t_fpath}" 1>&2
+        else
+            printf "${__T_V_AWS_AS_PROG} (debug): cache file does not (yet) exist: '%s'\n" "${t_fpath}" 1>&2
+        fi
+    fi
+
+    local t_access_key_id
+    local t_secret_access_key
+    local t_session_token
+    local t_expiration_utc
+
+    if test -e "${t_fpath}"; then
+
+        # read cached creds and expiration timestamp from file cache
+        # (xargs is there to flatten multiple lines down into one)
+        read -r t_access_key_id     \
+                t_secret_access_key \
+                t_session_token     \
+                t_expiration_utc <  \
+          <("${__T_V_AWS_AS_XARGS_PROG}" < <("${__T_V_AWS_AS_JQ_PROG}" --raw-output \
+                '.Credentials | .AccessKeyId, .SecretAccessKey, .SessionToken, .Expiration' \
+                < "${t_fpath}"))
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to parse user creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_access_key_id}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty access key from user creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_secret_access_key}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty secret access key from user creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_session_token}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty session token from user creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_expiration_utc}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty expiration timestamp from user creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+
+    else
+
+        # obtain temporary creds (sts:GetSessionToken) and cache them in file
+
+        local t_mfa_token_code
+
+        if test -n "${t_mfa_serial}"; then
+
+            # The profile requires MFA authentication, we will handle
+            # ourselves the prompting the user for the MFA token code.
+
+            if test -t 0; then :; else
+                printf "${__T_V_AWS_AS_PROG} (error): need to prompt user for MFA token, but stdin is not a terminal; stopping\n" 1>&2
+                return 1
+            fi
+
+            # Prompt here is designed to look just like the one emitted by aws-cli:
+            #
+            #      Enter MFA code for <mfa-serial-number>:
+            #
+            # We'll wait 90 seconds for the user to enter the value before giving
+            # up. That should be enough time that any futzing with the device can be
+            # accommodated.
+            #
+            read -r -s -t 90 -p "Enter MFA code for ${t_mfa_serial}: " t_mfa_token_code
+            if test $? -ne 0; then
+                # If our read timed-out or was interrupted, we will not retry
+                printf '\n'"${__T_V_AWS_AS_PROG} (error): was unable to obtain MFA code for device '%s'; stopping\n" \
+                    "${t_mfa_serial}" 1>&2
+                return 1
+            fi
+            printf '\n'  # advance the line, post-prompting
+
+            # XXX: Writing in 2020-09, a valid MFA token is a six-digit code. We are
+            #      hard-coding that here to optimize for the current common case, but
+            #      we'll need to change this code in the future if the format changes
+            #      (e.g., if AWS starts accepting more than six digits).
+            #
+            if [[ ${t_mfa_token_code} =~ ^[[:digit:]]{6}$ ]]; then :; else
+                printf "${__T_V_AWS_AS_PROG} (error): invalid MFA code entered -- must be exactly six digits; stopping\n" 1>&2
+                return 1
+            fi
+        fi
+
+        local -a t_global_opts=()
+        local -a t_srvice_opts=()
+        local -a t_subcmd_opts=()
+
+        t_global_opts+=('--profile')
+        t_global_opts+=("${t_profile_name}")
+
+        t_global_opts+=('--output')
+#        t_global_opts+=('text')
+        t_global_opts+=('json')
+
+#        t_global_opts+=('--query')
+#        t_global_opts+=('Credentials.[AccessKeyId,SecretAccessKey,SessionToken,Expiration]')
+
+        if test -n "${t_mfa_serial}"; then
+            t_subcmd_opts+=('--serial-number')
+            t_subcmd_opts+=("${t_mfa_serial}")
+
+            t_subcmd_opts+=('--token-code')
+            t_subcmd_opts+=("${t_mfa_token_code}")
+        fi
+
+        # We grap the raw JSON output whole; that will be the content of
+        # our new cache file.
+        #
+        local t_raw_json_rsp
+        t_raw_json_rsp=$("${__T_V_AWS_AS_AWS_PROG}" "${t_global_opts[@]}" \
+                                                sts "${t_srvice_opts[@]}" \
+                                  get-session-token "${t_subcmd_opts[@]}")
+
+#        read -r t_access_key_id     \
+#                t_secret_access_key \
+#                t_session_token     \
+#                t_expiration_utc <  \
+#          <("${__T_V_AWS_AS_AWS_PROG}" "${t_global_opts[@]}" \
+#                                   sts "${t_srvice_opts[@]}" \
+#                     get-session-token "${t_subcmd_opts[@]}")
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to get session token for profile: %s\n" \
+            "${t_profile_name}" 1>&2
+            return 1
+        fi
+        if test -z "${t_raw_json_rsp}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty JSON output from get-session-token (???) for profile: %s\n" \
+            "${t_profile_name}" 1>&2
+            return 1
+        fi
+
+        # read cached creds and expiration timestamp from raw JSON output
+        # (xargs is there to flatten multiple lines down into one)
+        read -r t_access_key_id     \
+                t_secret_access_key \
+                t_session_token     \
+                t_expiration_utc <  \
+            <("${__T_V_AWS_AS_XARGS_PROG}" < <("${__T_V_AWS_AS_JQ_PROG}" --raw-output \
+                '.Credentials | .AccessKeyId, .SecretAccessKey, .SessionToken, .Expiration' \
+                <<< "${t_raw_json_rsp}"))
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to parse raw JSON output from get-session-token for profile: %s\n" \
+            "${t_profile_name}" 1>&2
+            return 1
+        fi
+        if test -z "${t_access_key_id}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty user access key from parsed session token creds\n" 1>&2
+            return 1
+        fi
+        if test -z "${t_secret_access_key}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty user secret access key from parsed session token creds\n" 1>&2
+            return 1
+        fi
+        if test -z "${t_session_token}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty user session token from parsed session token creds\n" 1>&2
+            return 1
+        fi
+        if test -z "${t_expiration_utc}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty user expiration timestamp from parsed session token creds\n" 1>&2
+            return 1
+        fi
+
+        # create a new cache file for these temporary User creds
+        #
+        > "${t_fpath}"
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to create user creds cache file: %s\n" "${t_fpath}" 1>&2
+            return 1
+        fi
+        "${__T_V_AWS_AS_CHMOD_PROG}" '0600' "${t_fpath}"
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to set perms on newly created user creds cache file: %s\n" "${t_fpath}" 1>&2
+            return 1
+        fi
+        printf '%s\n' "${t_raw_json_rsp}" > "${t_fpath}"
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to write JSON content to newly created user creds cache file: %s\n" "${t_fpath}" 1>&2
+            return 1
+        fi
+    fi
+
+    # place user creds into environment
+    #
+    AWS_ACCESS_KEY_ID=${t_access_key_id}
+    AWS_SECRET_ACCESS_KEY=${t_secret_access_key}
+    AWS_SESSION_TOKEN=${t_session_token}
+
+    # (Maybe) create visual indicator in
+    #
+    __T_V_AWS_AS_PROFILE=${t_profile_name}
+    __t_f_aws_as_maybe_update_PS1
+
+    return 0
+}
+EOF
+
+
+    "${CAT_PROG}" - <<'EOF'
+
+# Helper for __t_f_aws_as_try_set_profile_as()
+# @param: PROFILE (presumed validated)
+#
+function __t_f_aws_as_try_set_profile_as_for_role () {
 
     local t_profile_name
 
     t_profile_name=$1
+
+    local t_mfa_serial=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'mfa_serial')
+    local t_role_sessn=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'role_session_name')
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (debug): mfa_serial from aws-cli config: '%s'\n" "${t_mfa_serial}" 1>&2
+        printf "${__T_V_AWS_AS_PROG} (debug): role_session_name from aws-cli config: '%s'\n" "${t_role_sessn}" 1>&2
+    fi
+
+    # If the role session name from the aws-cli config is not set, then we
+    # might still be able to locate the cache file. If we need to force an
+    # authentication event for it though (assume-role), we are forced to
+    # provide a role session name. We could make one up, or even accept
+    # one on the 'aws-as' command line, but for our purposes of hopping
+    # between sets of cached credentials it is better for the role session
+    # name to come from the config file -- that provides the most reuse
+    # (because it impacts the name aws-cli uses for the cache file).
+    #
+    # For now, we'll force the user to set the value in the config file
+    # section for the profile.
+    #
+    # FIXME: In the future, maybe support a '--role-session-name' config
+    #        line opt for 'aws-as' for special purpose overriding of our
+    #        default behavior.
+    #
+    if test -z "${t_role_sessn}"; then
+        {
+            printf "${__T_V_AWS_AS_PROG} (error): profile has no 'role_session_name' configured\n"
+            printf "    HINT: aws --profile '%s' configure set 'role_session_name' 'SOME-LABEL'\n" "${t_profile_name}"
+        } 1>&2
+        return 1
+    fi
+
+    # This is how aws-cli does it (kinda). Not part of their public
+    # API, so this approach is subject to change on us at any time.
+    # Note that the keys are alphabetically sorted; order here matters.
+    #
+    local t_cachefile_key=$("${__T_V_AWS_AS_PYTHON3_PROG}" -c '
+import sys; import json; from hashlib import sha1;
+arn = sys.argv[1];
+sn  = sys.argv[2];
+rsn = sys.argv[3];
+if len(rsn) > 0:
+    print( sha1( json.JSONEncoder().encode({"RoleArn": arn, "RoleSessionName": rsn, "SerialNumber": sn}).encode("utf-8") ).hexdigest() )
+else:
+    print( sha1( json.JSONEncoder().encode({"RoleArn": arn, "SerialNumber": sn}).encode("utf-8") ).hexdigest() )
+                            ' \
+                            "${t_role_arn}"   \
+                            "${t_mfa_serial}" \
+                            "${t_role_sessn}"
+                           )
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to generate cache file key for role\n" 1>&2
+        return 1
+    fi
+    if test -z "${t_cachefile_key}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): generated cache file key for role is empty(???)\n" 1>&2
+        return 1
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (debug): generated cache file key for role is '%s'\n" "${t_cachefile_key}" 1>&2
+    fi
+
+# FIXME: AL.DEBUG working here
+    local t_fpath="${HOME}/.aws/cli/cache/${t_cachefile_key}.json"
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (debug): cache filepath is '%s'\n" "${t_fpath}" 1>&2
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        if test -e "${t_fpath}"; then
+            printf "${__T_V_AWS_AS_PROG} (debug): cache file exists: '%s'\n" "${t_fpath}" 1>&2
+        else
+            printf "${__T_V_AWS_AS_PROG} (debug): cache file does not (yet) exist: '%s'\n" "${t_fpath}" 1>&2
+        fi
+    fi
+
+#AL.DEBUG remove go
+    if test $t_estat -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (ALDEBUG): this section still a WIP; stopping\n" 1>&2
+        return 1
+    fi
+#AL.DEBUG remove end
+
+
+#    if test -e "${t_fpath}"; then :; else
+#
+#        # If the aws-cli cache file was not found for a given Role-base
+#        # profile, then one of the following may be true:
+#        #
+#        #     1. the profile has never been used (maybe because it is
+#        #        new, or the user has changed its configuration in such
+#        #        a way that its SHA-1 has has changed)
+#        #
+#        #     2. the cache file was deleted (for whatever reason)
+#        #
+#        #     3. some future version of the aws-cli program started using
+#        #        a different approach to producing the SHA-1 hashes, and
+#        #        this code is no longer in alignment with what it is doing
+#        #
+#        #     4. ???
+#        #
+#        # We'll force an authentication event for the profile, and then
+#        # check again.
+#        #
+#        # However, if the profile requires MFA authentication, we will
+#        # handle ourselves the prompting the user for the MFA token code.
+#        # The reason for this is that aws-cli will behave in a wonky way
+#        # that is difficult to error check if we omit the '--token-code'
+#        # option below and rely on it to do the prompting. (See notes
+#        # below for more details.)
+#
+#        if test -n "${t_mfa_serial}"; then
+#
+#            # This profile requires MFA authentication in order to assume
+#            # the role
+#
+## FIXME: We know we're dealing with a profile for a Role, so the MFA-based
+##        authentication needs to be done in the context of the IAM User
+##        assuming the role. Delegate that to some other piece of code, and
+##        then resume here once the sts:GetSessionToken temporary creds are
+##        configured in the environment.
+#
+#            # There is the tiniest of chances that the user (or more likely,
+#            # some other tool) has just set the MFA token in the aws-cli
+#            # configuration file(s). The key name used, though, would be
+#            # non-standard, as there currently (2020-09) is no official
+#            # support for any specific key for that purpose.
+#            #
+#            # XXX: consider adding support for the mfa token code key names
+#            #      used by other tools seen in the wild, and use the found value
+#            #      before falling back on prompting the user for it (as we do here).
+#            #
+#            if test -t 0; then :; else
+#                printf "${__T_V_AWS_AS_PROG} (error): need to prompt user for MFA token, but stdin is not a terminal; stopping\n" 1>&2
+#                return 1
+#            fi
+#            # Prompt here is designed to look just like the one emitted by aws-cli:
+#            #
+#            #      Enter MFA code for <mfa-serial-number>:
+#            #
+#            # We'll wait 90 seconds for the user to enter the value before giving
+#            # up. That should be enough time that any futzing with the device can be
+#            # accommodated.
+#            #
+#            local t_mfa_token_code
+#            read -r -s -t 90 -p "Enter MFA code for ${t_mfa_serial}: " t_mfa_token_code
+#            if test $? -ne 0; then
+#                # If our read timed-out or was interrupted, we will not retry
+#                printf '\n'"${__T_V_AWS_AS_PROG} (error): was unable to obtain MFA code for device '%s'; stopping\n" \
+#                    "${t_mfa_serial}" 1>&2
+#                return 1
+#            fi
+#            printf '\n'  # advance the line, post-prompting
+#
+#            # XXX: Writing in 2020-09, a valid MFA token is a six-digit code. We are
+#            #      hard-coding that here to optimize for the current common case, but
+#            #      we'll need to change this code in the future if the format changes
+#            #      (e.g., if AWS starts accepting more than six digits).
+#            #
+#            if [[ ${t_mfa_token_code} =~ ^[[:digit:]]{6}$ ]]; then :; else
+#                printf "${__T_V_AWS_AS_PROG} (error): invalid MFA code entered -- must be exactly six digits; stopping\n" 1>&2
+#                return 1
+#            fi
+#        fi
+#
+## FIXME: I accidentally edited the Role section while working on User
+#
+#        local -a t_global_opts=()
+#        local -a t_srvice_opts=()
+#        local -a t_subcmd_opts=()
+#
+#        t_global_opts+=('--profile')
+#        t_global_opts+=("${t_profile_name}")
+#
+#        t_global_opts+=('--output')
+#        t_global_opts+=('text')
+#
+#        t_global_opts+=('--query')
+#        t_global_opts+=('Credentials.[AccessKeyId,SecretAccessKey,SessionToken,Expiration]')
+#
+#        if test -n "${t_mfa_serial}"; then
+#            t_subcmd_opts+=('--serial-number')
+#            t_subcmd_opts+=("${t_mfa_serial}")
+#
+#            t_subcmd_opts+=('--token-code')
+#            t_subcmd_opts+=("${t_mfa_token_code}")
+#        fi
+#
+#        read -r t_access_key_id     \
+#                t_secret_access_key \
+#                t_session_token     \
+#                t_expiration_utc <  \
+#          <("${__T_V_AWS_AS_AWS_PROG}" "${t_global_opts[@]}" \
+#                                   sts "${t_srvice_opts[@]}" \
+#                     get-session-token "${t_subcmd_opts[@]}")
+#        if test $t_estat -ne 0; then
+#            printf "${__T_V_AWS_AS_PROG} (error): was unable to get session token for profile: %s\n" \
+#            "${t_profile_name}" 1>&2
+#            return 1
+#        fi
+#
+#    fi
+#
+#    # FIXME: place user creds into environment
+#
+## FIXME: AL.DEBUG working here
+###^^^^^^^^^^^
+#
+#
+#
+#
+#
+## Use 'Arn' from sts get-caller-identity to obtain ARN for IAM User.
 }
 EOF
 
@@ -1083,6 +1629,9 @@ function __t_f_aws_as_try_set_profile_as () {
 
     return 0
 }
+EOF
+
+    "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_main () {
 
