@@ -78,12 +78,12 @@ if test -z "$AWS_PROG"; then
     AC_MSG_ERROR([aws not found])
 fi
 
-## We need bash >= 3.x
+## We need bash >= 4.x (associative arrays were added in bash-4.0)
 ##
 AC_PATH_PROG(BASH_SH, bash)
 AS_IF([test -z "$BASH_SH"], [AC_MSG_ERROR([bash not found])],
-      [["${BASH_SH}" -c 'test -n "${BASH_VERSINFO@<:@0@:>@:+set}" && test ${BASH_VERSINFO@<:@0@:>@]} -ge 3 && exit 0'], [:],
-      [AC_MSG_ERROR([found version of bash is not new enough; bash 3.0 or newer is required])
+      [["${BASH_SH}" -c 'test -n "${BASH_VERSINFO@<:@0@:>@:+set}" && test ${BASH_VERSINFO@<:@0@:>@]} -ge 4 && exit 0'], [:],
+      [AC_MSG_ERROR([found version of bash is not new enough; bash 4.0 or newer is required])
 ])
 
 AC_PATH_PROG([CAT], [cat])
