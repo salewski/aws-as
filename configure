@@ -2694,7 +2694,7 @@ if test -z "$AWS_PROG"; then
     as_fn_error $? "aws not found" "$LINENO" 5
 fi
 
-## We need bash >= 3.x
+## We need bash >= 4.x (associative arrays were added in bash-4.0)
 ##
 # Extract the first word of "bash", so it can be a program name with args.
 set dummy bash; ac_word=$2
@@ -2738,10 +2738,10 @@ fi
 
 if test -z "$BASH_SH"; then :
   as_fn_error $? "bash not found" "$LINENO" 5
-elif "${BASH_SH}" -c 'test -n "${BASH_VERSINFO[0]:+set}" && test ${BASH_VERSINFO[0]} -ge 3 && exit 0'; then :
+elif "${BASH_SH}" -c 'test -n "${BASH_VERSINFO[0]:+set}" && test ${BASH_VERSINFO[0]} -ge 4 && exit 0'; then :
   :
 else
-  as_fn_error $? "found version of bash is not new enough; bash 3.0 or newer is required" "$LINENO" 5
+  as_fn_error $? "found version of bash is not new enough; bash 4.0 or newer is required" "$LINENO" 5
 
 fi
 
