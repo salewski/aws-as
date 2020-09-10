@@ -867,6 +867,196 @@ EOF
 declare -A __T_V_AWS_AS_PROF_TO_UARN
 EOF
 
+
+    # We can currently get away with using a single function for parsing our
+    # credentials cache files for both source_profile ("user") credentials and
+    # assume-role credentials. The 'Credentials' object in the JSON for both
+    # types contains the same set of keys for the temporary credentials
+    # ("AccessKeyId", "SecretAccessKey", "SessionToken", and "Expiration").
+    #
+    # __t_f_aws_as_parse_creds_from_cache_file() will extract the vlaues
+    #
+    # @PARAM: CACHE_FILE_PATH (required) the path to the cache file, which is
+    #                         presumed to exist.
+    #
+    # @PARAM: CREDS_TYPE (required) set to either 'user' or 'role' to indicate
+    #                         the type of credentials in the file (caller will
+    #                         know). This is used only to provide better error
+    #                         messages when things go wrong.
+    #
+    # @PARAM: OUT_ACCESS_KEY_ID (required) the name of a /global/ variable to
+    #                         be used as the output location to which our
+    #                         parsed "AccessKeyId" value should be written.
+    #
+    # @PARAM: OUT_SECRET_ACCESS_KEY (required) the name of a /global/ variable to
+    #                         be used as the output location to which our
+    #                         parsed "SecretAccessKey" value should be written.
+    #
+    # @PARAM: OUT_SESSION_TOKEN (required) the name of a /global/ variable to
+    #                         be used as the output location to which our
+    #                         parsed "SessionToken" value should be written.
+    #
+    # @PARAM: OUT_EXPIRATION_UTC (required) the name of a /global/ variable to
+    #                         be used as the output location to which our
+    #                         parsed "Expiration" value should be written.
+    #
+    # An error is emitted if the file does not exist, or if we were unable to
+    # parse a full set of credentials values from the file.
+    #
+    # CAREFUL: The credentials returned may have expired; caller is
+    #          responsible for using the expiration date/time stamp as needed
+    #          to deal with that (where needed).
+    #
+    t_cleanup_statements+=('unset -f __t_f_aws_as_parse_creds_from_cache_file')
+
+    "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aws_as_parse_creds_from_cache_file () {
+
+    local t_fpath=$1
+    local t_credstype=$2
+
+    # Local variables to hold the names of the caller-provide global variables
+    local t_out_access_key_id=$3
+    local t_out_secret_access_key=$4
+    local t_out_session_token=$5
+    local t_out_expiration_utc=$6
+
+    local t_access_key_id
+    local t_secret_access_key
+    local t_session_token
+    local t_expiration_utc
+
+    case $t_credstype in
+        'user') ;;
+        'role') ;;
+        *)
+            printf "${__T_V_AWS_AS_PROG} ${FUNCNAME}(): (BUG): CREDS_TYPE param must be 'user' or 'role'; got '%s'\n" \
+                "${t_credstype}" 1>&2
+            return 1
+            ;;
+    esac
+
+    if test -e "${t_fpath}"; then :; else
+        printf "${__T_V_AWS_AS_PROG} ${FUNCNAME}(): (error): not such file: %s\n" "${t_fpath}" 1>&2
+        return 1
+    fi
+
+    # read cached creds and expiration timestamp from file cache
+    # (xargs is there to flatten multiple lines down into one)
+    read -r t_access_key_id     \
+            t_secret_access_key \
+            t_session_token     \
+            t_expiration_utc <  \
+      <("${__T_V_AWS_AS_XARGS_PROG}" < <("${__T_V_AWS_AS_JQ_PROG}" --raw-output \
+            '.Credentials | .AccessKeyId, .SecretAccessKey, .SessionToken, .Expiration' \
+            < "${t_fpath}"))
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to parse %s creds cache file: %s\n" \
+            "${t_credstype}" "${t_fpath}" 1>&2
+        return 1
+    fi
+    if test -z "${t_access_key_id}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): parsed empty access key from %s creds cache file: %s\n" \
+            "${t_credstype}" "${t_fpath}" 1>&2
+        return 1
+    fi
+    if test -z "${t_secret_access_key}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): parsed empty secret access key from %s creds cache file: %s\n" \
+            "${t_credstype}" "${t_fpath}" 1>&2
+        return 1
+    fi
+    if test -z "${t_session_token}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): parsed empty session token from %s creds cache file: %s\n" \
+            "${t_credstype}" "${t_fpath}" 1>&2
+        return 1
+    fi
+    if test -z "${t_expiration_utc}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): parsed empty expiration timestamp from %s creds cache file: %s\n" \
+            "${t_credstype}" "${t_fpath}" 1>&2
+        return 1
+    fi
+
+    printf -v "${t_out_access_key_id}" '%s' "${t_access_key_id}" || {
+        printf "${__T_V_AWS_AS_PROG} (error): [creds type: %s] was unable to set global variable '%s' with value of parsed access key id (from file: %s)\n" \
+            "${t_credstype}"         \
+            "${t_out_access_key_id}" \
+            "${t_fpath}" 1>&2;
+        return 1;
+    }
+    printf -v "${t_out_secret_access_key}" '%s' "${t_secret_access_key}" || {
+        printf "${__T_V_AWS_AS_PROG} (error): [creds type: %s] was unable to set global variable '%s' with value of parsed secret access key (from file: %s)\n" \
+            "${t_credstype}"         \
+            "${t_out_secret_access_key}" \
+            "${t_fpath}" 1>&2;
+        return 1;
+    }
+    printf -v "${t_out_session_token}" '%s' "${t_session_token}" || {
+        printf "${__T_V_AWS_AS_PROG} (error): [creds type: %s] was unable to set global variable '%s' with value of parsed session token (from file: %s)\n" \
+            "${t_credstype}"         \
+            "${t_out_session_token}" \
+            "${t_fpath}" 1>&2;
+        return 1;
+    }
+    printf -v "${t_out_expiration_utc}" '%s' "${t_expiration_utc}" || {
+        printf "${__T_V_AWS_AS_PROG} (error): [creds type: %s] was unable to set global variable '%s' with value of parsed expiration date/timestamp (from file: %s)\n" \
+            "${t_credstype}"         \
+            "${t_out_expiration_utc}" \
+            "${t_fpath}" 1>&2;
+        return 1;
+    }
+
+    return 0
+}
+EOF
+
+
+    # Global variables for obtaining parsed credential file output from the
+    # function __t_f_aws_as_parse_creds_from_cache_file(). To help keep the
+    # environment tidy, callers should use the __t_v_aws_as_parsed_creds_reset()
+    # function both prior and in the wake of invoking __t_f_aws_as_parse_creds_from_cache_file()
+    #
+    # Note that these should not be referenced directly, except by the
+    # function that is calling __t_f_aws_as_parse_creds_from_cache_file(), and
+    # (indirectly by) __t_f_aws_as_parse_creds_from_cache_file() itself.
+    #
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PARSED_CRED_ACCESS_KEY_ID')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PARSED_CRED_SECRET_ACCESS_KEY')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PARSED_CRED_SESSION_TOKEN')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PARSED_CRED_EXPIRATION_UTC')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PARSED_CRED__SET')
+
+    t_cleanup_statements+=('unset -f __t_v_aws_as_parsed_creds_reset')
+
+    "${CAT_PROG}" - <<'EOF'
+
+declare -a __T_V_AWS_AS_PARSED_CRED__SET
+__T_V_AWS_AS_PARSED_CRED__SET+=('__T_V_AWS_AS_PARSED_CRED_ACCESS_KEY_ID')
+__T_V_AWS_AS_PARSED_CRED__SET+=('__T_V_AWS_AS_PARSED_CRED_SECRET_ACCESS_KEY')
+__T_V_AWS_AS_PARSED_CRED__SET+=('__T_V_AWS_AS_PARSED_CRED_SESSION_TOKEN')
+__T_V_AWS_AS_PARSED_CRED__SET+=('__T_V_AWS_AS_PARSED_CRED_EXPIRATION_UTC')
+
+function __t_v_aws_as_parsed_creds_reset () {
+
+    local t_one_var_name
+
+    for t_one_var_name in "${__T_V_AWS_AS_PARSED_CRED__SET[@]}"; do
+        unset "${t_one_var_name}"
+    done
+
+    for t_one_var_name in "${__T_V_AWS_AS_PARSED_CRED__SET[@]}"; do
+        declare -g "${t_one_var_name}" || {
+            printf "${__T_V_AWS_AS_PROG} (error): was unable declare global variable '%s'\n" \
+                        "${t_one_var_name}" 1>&2;
+            return 1
+        }
+    done
+
+    return 0
+}
+EOF
+
+
     "${CAT_PROG}" - <<'EOF'
 
 # Helper for __t_f_aws_as_try_set_profile_as()
@@ -1002,6 +1192,8 @@ else:
         fi
     fi
 
+    local t_have_unexpired_creds=false
+
     local t_access_key_id
     local t_secret_access_key
     local t_session_token
@@ -1010,39 +1202,26 @@ else:
     if test -e "${t_fpath}"; then
 
         # read cached creds and expiration timestamp from file cache
-        # (xargs is there to flatten multiple lines down into one)
-        read -r t_access_key_id     \
-                t_secret_access_key \
-                t_session_token     \
-                t_expiration_utc <  \
-          <("${__T_V_AWS_AS_XARGS_PROG}" < <("${__T_V_AWS_AS_JQ_PROG}" --raw-output \
-                '.Credentials | .AccessKeyId, .SecretAccessKey, .SessionToken, .Expiration' \
-                < "${t_fpath}"))
+
+        __t_v_aws_as_parsed_creds_reset || return 1
+        __t_f_aws_as_parse_creds_from_cache_file "${t_fpath}" 'user' \
+            '__T_V_AWS_AS_PARSED_CRED_ACCESS_KEY_ID'     \
+            '__T_V_AWS_AS_PARSED_CRED_SECRET_ACCESS_KEY' \
+            '__T_V_AWS_AS_PARSED_CRED_SESSION_TOKEN'     \
+            '__T_V_AWS_AS_PARSED_CRED_EXPIRATION_UTC'
         if test $? -ne 0; then
-            printf "${__T_V_AWS_AS_PROG} (error): was unable to parse user creds cache file: %s\n" \
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to obtain parsed user creds\n" \
                 "${t_fpath}" 1>&2
             return 1
         fi
-        if test -z "${t_access_key_id}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty access key from user creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
-        if test -z "${t_secret_access_key}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty secret access key from user creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
-        if test -z "${t_session_token}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty session token from user creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
-        if test -z "${t_expiration_utc}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty expiration timestamp from user creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
+        t_access_key_id=${__T_V_AWS_AS_PARSED_CRED_ACCESS_KEY_ID}
+        t_secret_access_key=${__T_V_AWS_AS_PARSED_CRED_SECRET_ACCESS_KEY}
+        t_session_token=${__T_V_AWS_AS_PARSED_CRED_SESSION_TOKEN}
+        t_expiration_utc=${__T_V_AWS_AS_PARSED_CRED_EXPIRATION_UTC}
+
+        # avoid leaving the creds around in the global variables
+        #
+        __t_v_aws_as_parsed_creds_reset || return 1
 
     else
 
@@ -1335,39 +1514,26 @@ else:
     if test -e "${t_fpath}"; then
 
         # read cached creds and expiration timestamp from file cache
-        # (xargs is there to flatten multiple lines down into one)
-        read -r t_access_key_id     \
-                t_secret_access_key \
-                t_session_token     \
-                t_expiration_utc <  \
-          <("${__T_V_AWS_AS_XARGS_PROG}" < <("${__T_V_AWS_AS_JQ_PROG}" --raw-output \
-                '.Credentials | .AccessKeyId, .SecretAccessKey, .SessionToken, .Expiration' \
-                < "${t_fpath}"))
+
+        __t_v_aws_as_parsed_creds_reset || return 1
+        __t_f_aws_as_parse_creds_from_cache_file "${t_fpath}" 'role' \
+            '__T_V_AWS_AS_PARSED_CRED_ACCESS_KEY_ID'     \
+            '__T_V_AWS_AS_PARSED_CRED_SECRET_ACCESS_KEY' \
+            '__T_V_AWS_AS_PARSED_CRED_SESSION_TOKEN'     \
+            '__T_V_AWS_AS_PARSED_CRED_EXPIRATION_UTC'
         if test $? -ne 0; then
-            printf "${__T_V_AWS_AS_PROG} (error): was unable to parse role creds cache file: %s\n" \
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to obtain parsed role creds\n" \
                 "${t_fpath}" 1>&2
             return 1
         fi
-        if test -z "${t_access_key_id}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty access key from role creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
-        if test -z "${t_secret_access_key}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty secret access key from role creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
-        if test -z "${t_session_token}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty session token from role creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
-        if test -z "${t_expiration_utc}"; then
-            printf "${__T_V_AWS_AS_PROG} (error): parsed empty expiration timestamp from role creds cache file: %s\n" \
-                "${t_fpath}" 1>&2
-            return 1
-        fi
+        t_access_key_id=${__T_V_AWS_AS_PARSED_CRED_ACCESS_KEY_ID}
+        t_secret_access_key=${__T_V_AWS_AS_PARSED_CRED_SECRET_ACCESS_KEY}
+        t_session_token=${__T_V_AWS_AS_PARSED_CRED_SESSION_TOKEN}
+        t_expiration_utc=${__T_V_AWS_AS_PARSED_CRED_EXPIRATION_UTC}
+
+        # avoid leaving the creds around in the global variables
+        #
+        __t_v_aws_as_parsed_creds_reset || return 1
 
     else
 
