@@ -1096,11 +1096,7 @@ else:
         t_global_opts+=("${t_profile_name}")
 
         t_global_opts+=('--output')
-#        t_global_opts+=('text')
         t_global_opts+=('json')
-
-#        t_global_opts+=('--query')
-#        t_global_opts+=('Credentials.[AccessKeyId,SecretAccessKey,SessionToken,Expiration]')
 
         if test -n "${t_mfa_serial}"; then
             t_subcmd_opts+=('--serial-number')
@@ -1121,14 +1117,6 @@ else:
         t_raw_json_rsp=$("${__T_V_AWS_AS_AWS_PROG}" "${t_global_opts[@]}" \
                                                 sts "${t_srvice_opts[@]}" \
                                   get-session-token "${t_subcmd_opts[@]}")
-
-#        read -r t_access_key_id     \
-#                t_secret_access_key \
-#                t_session_token     \
-#                t_expiration_utc <  \
-#          <("${__T_V_AWS_AS_AWS_PROG}" "${t_global_opts[@]}" \
-#                                   sts "${t_srvice_opts[@]}" \
-#                     get-session-token "${t_subcmd_opts[@]}")
         if test $? -ne 0; then
             printf "${__T_V_AWS_AS_PROG} (error): was unable to get session token for profile: %s\n" \
             "${t_profile_name}" 1>&2
