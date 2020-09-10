@@ -654,6 +654,7 @@ EOF
     t_cleanup_statements+=('unset -f __t_f_aws_as_clear_out_creds')
     t_cleanup_statements+=('unset -f __t_f_aws_as_export_cred_vars')
     t_cleanup_statements+=('unset -f __t_f_aws_as_unexport_cred_vars')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_list_profiles')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as_for_user')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as_for_role')
@@ -683,6 +684,7 @@ usage: \$__T_V_AWS_AS_PROG [-v...] { -h | --help }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -V | --version }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -C | --clear-creds }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -E | --export }
+  or:  \$__T_V_AWS_AS_PROG [-v...] { -L | --list-profiles }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -U | --unexport }
   or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] AWS_CLI_PROFILE
 
@@ -690,18 +692,21 @@ Switch to specified profile, authenticating with MFA, if necessary.
 
 CAREFUL: Bundling of short-form options is not (yet?) supported.
 
-  -h, --help         Print this help message on stdout
-  -V, --version      Print the version of the program on stdout
+  -h, --help           Print this help message on stdout
+  -V, --version        Print the version of the program on stdout
 
-  -C, --clear-creds  Unset AWS_* credential variables in the environment
-  -E, --export       Mark the AWS_* credential variables for export
-  -U, --unexport     Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
+  -C, --clear-creds    Unset AWS_* credential variables in the environment
 
-  -v, --verbose      Print program progress messages on stderr. Specify multiple
-                       times to increase verbosity: info, debug, and tracing (set -x)
+  -E, --export         Mark the AWS_* credential variables for export
+  -U, --unexport       Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
 
-      --             Signals the end of options and disables further options processing.
-                       Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
+  -L, --list-profiles  Print list of aws-cli profiles on stdout
+
+  -v, --verbose        Print program progress messages on stderr. Specify multiple
+                         times to increase verbosity: info, debug, and tracing (set -x)
+
+      --               Signals the end of options and disables further options processing.
+                         Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
 
 Report bugs to $MAINTAINER.
 EODEF
@@ -720,6 +725,22 @@ Written by Alan D. Salewski.
 EODEF
 }
 EOF
+
+
+    "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aws_as_list_profiles () {
+
+    "${__T_V_AWS_AS_AWS_PROG}" configure list-profiles
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was error while attempting to list the aws-cli profiles\n" 1>&2
+        return 1
+    fi
+
+    return 0
+}
+EOF
+
 
     # switch back to using non-interpolated heredoc
     #
@@ -1511,6 +1532,11 @@ function __t_f_aws_as_main () {
 
             '--unexport' | '-U')
                 __t_f_aws_as_unexport_cred_vars
+                return $?
+                ;;
+
+            '--list-profiles' | '-L')
+                __t_f_aws_as_list_profiles
                 return $?
                 ;;
 
