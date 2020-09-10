@@ -590,11 +590,16 @@ if test "\${${vname}:+is_set}" = 'is_set'; then
     unset ${vname}
 fi
 EOF
+        # While 'aws-as' is active in the user's shell we may set and unset
+        # the various AWS_* credential variables. To the extent possible, upon
+        # deactivation we want to return the shell envinment to the state it
+        # was in upon activation. That means unsetting the AWS_* vars if they
+        # were not already set at the time of activation.
 
         t_cleanup_statements+=(':')
         t_cleanup_statements+=('unset -v __t_v_aws_as_'"${vname}"'_hold')
         t_cleanup_statements+=('unset -v __t_v_aws_as_have_'"${vname}"'_hold')
-        t_cleanup_statements+=('${__t_v_aws_as_have_'"${vname}"'_hold} && '"${vname}"'=${__t_v_aws_as_'"${vname}"'_hold}')
+        t_cleanup_statements+=('${__t_v_aws_as_have_'"${vname}"'_hold} && '"${vname}"'=${__t_v_aws_as_'"${vname}"'_hold} || unset '"${vname}")
     done
 
 
