@@ -685,14 +685,17 @@ Switch to specified profile, authenticating with MFA, if necessary.
 
 CAREFUL: Bundling of short-form options is not (yet?) supported.
 
-  -h, --help     Print this help message on stdout
-  -V, --version  Print the version of the program on stdout
+  -h, --help      Print this help message on stdout
+  -V, --version   Print the version of the program on stdout
 
-  -v, --verbose  Print program progress messages on stderr. Specify multiple
-                   times to increase verbosity: info, debug, and tracing (set -x)
+  -E, --export    Mark the AWS_* creds vars for export
+  -U, --unexport  Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
 
-      --         Signals the end of options and disables further options processing.
-                   Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
+  -v, --verbose   Print program progress messages on stderr. Specify multiple
+                    times to increase verbosity: info, debug, and tracing (set -x)
+
+      --          Signals the end of options and disables further options processing.
+                    Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
 
 Report bugs to $MAINTAINER.
 EODEF
@@ -727,6 +730,81 @@ function __t_f_aws_as_clear_out_profile () {
     __t_f_aws_as_maybe_update_PS1
 }
 EOF
+
+    # Support for aws-as '-E' (--export) opt
+    # https://github.com/salewski/aws-as/issues/3
+    #
+    # Note that it is possible for only a subset of the above set of vars to
+    # be set (e.g., if the user set them manually), but by design we will only
+    # export them if we are dealing with a complete set.
+    #
+    "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aws_as_export_cred_vars () {
+
+    local t_cnt=0
+
+    test -n "${AWS_ACCESS_KEY_ID}"     && (( ++t_cnt ))
+    test -n "${AWS_SECRET_ACCESS_KEY}" && (( ++t_cnt ))
+    test -n "${AWS_SESSION_TOKEN}"     && (( ++t_cnt ))
+
+    if test $t_cnt -eq 3; then
+        ${__T_V_AWS_AS_BE_VERBOSE} \
+            && printf "${__T_V_AWS_AS_PROG} (info): exporting AWS_ACCESS_KEY_ID\n" 1>&2
+        export AWS_ACCESS_KEY_ID
+
+        ${__T_V_AWS_AS_BE_VERBOSE} \
+            && printf "${__T_V_AWS_AS_PROG} (info): exporting AWS_SECRET_ACCESS_KEY\n" 1>&2
+        export AWS_SECRET_ACCESS_KEY
+
+        ${__T_V_AWS_AS_BE_VERBOSE} \
+            && printf "${__T_V_AWS_AS_PROG} (info): exporting AWS_SESSION_TOKEN\n" 1>&2
+        export AWS_SESSION_TOKEN
+
+        return 0
+    fi
+
+    if test $t_cnt -gt 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): a partial set of 'AWS_*' cred vars are set in the env (manually set?); no new exports performed\n" 1>&2
+    else
+        printf "${__T_V_AWS_AS_PROG} (error): no aws creds are currently in effect, so no 'AWS_*' vars are set and available for export\n" 1>&2
+    fi
+    return 1
+}
+EOF
+
+    # Support for aws-as '-U' (--unexport) opt
+    # https://github.com/salewski/aws-as/issues/3
+    #
+    "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aws_as_unexport_cred_vars () {
+
+    if test -n "${AWS_ACCESS_KEY_ID}"; then
+        ${__T_V_AWS_AS_DEBUGGING} \
+            && printf "${__T_V_AWS_AS_PROG} (debug): unexporting AWS_ACCESS_KEY_ID\n" 1>&2
+
+        export -n AWS_ACCESS_KEY_ID
+    fi
+
+    if test -n "${AWS_SECRET_ACCESS_KEY}"; then
+        ${__T_V_AWS_AS_DEBUGGING} \
+            && printf "${__T_V_AWS_AS_PROG} (debug): unexporting AWS_SECRET_ACCESS_KEY\n" 1>&2
+
+        export -n AWS_SECRET_ACCESS_KEY
+    fi
+
+    if test -n "${AWS_SESSION_TOKEN}"; then
+        ${__T_V_AWS_AS_DEBUGGING} \
+            && printf "${__T_V_AWS_AS_PROG} (debug): unexporting AWS_SESSION_TOKEN\n" 1>&2
+
+        export -n AWS_SESSION_TOKEN
+    fi
+
+    return 0
+}
+EOF
+
 
     # For IAM Roles, we leverage the caching scheme implemented by aws-cli, so
     # do not cache that type of temporary credential (from sts:AssumeRole)
@@ -1412,6 +1490,16 @@ function __t_f_aws_as_main () {
             '--version' | '-V')
                 __t_f_aws_as_print_version
                 return 0
+                ;;
+
+            '--export' | '-E')
+                __t_f_aws_as_export_cred_vars
+                return $?  # may be non-zero
+                ;;
+
+            '--unexport' | '-U')
+                __t_f_aws_as_unexport_cred_vars
+                return $?
                 ;;
 
             '--verbose' | '-v' )
