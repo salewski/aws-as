@@ -651,7 +651,9 @@ EOF
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
     t_cleanup_statements+=('unset -f __t_f_aws_as_reset_dashv_flags')
-    t_cleanup_statements+=('unset -f __t_f_aws_as_clear_out_profile')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_clear_out_creds')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_export_cred_vars')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_unexport_cred_vars')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as_for_user')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as_for_role')
@@ -677,25 +679,29 @@ __t_f_aws_as_reset_dashv_flags () {
 __t_f_aws_as_print_help () {
 
     cat <<EODEF
-usage: \$__T_V_AWS_AS_PROG { -h | --help }
-  or:  \$__T_V_AWS_AS_PROG { -V | --version }
+usage: \$__T_V_AWS_AS_PROG [-v...] { -h | --help }
+  or:  \$__T_V_AWS_AS_PROG [-v...] { -V | --version }
+  or:  \$__T_V_AWS_AS_PROG [-v...] { -C | --clear-creds }
+  or:  \$__T_V_AWS_AS_PROG [-v...] { -E | --export }
+  or:  \$__T_V_AWS_AS_PROG [-v...] { -U | --unexport }
   or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] AWS_CLI_PROFILE
 
 Switch to specified profile, authenticating with MFA, if necessary.
 
 CAREFUL: Bundling of short-form options is not (yet?) supported.
 
-  -h, --help      Print this help message on stdout
-  -V, --version   Print the version of the program on stdout
+  -h, --help         Print this help message on stdout
+  -V, --version      Print the version of the program on stdout
 
-  -E, --export    Mark the AWS_* creds vars for export
-  -U, --unexport  Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
+  -C, --clear-creds  Unset AWS_* credential variables in the environment
+  -E, --export       Mark the AWS_* credential variables for export
+  -U, --unexport     Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
 
-  -v, --verbose   Print program progress messages on stderr. Specify multiple
-                    times to increase verbosity: info, debug, and tracing (set -x)
+  -v, --verbose      Print program progress messages on stderr. Specify multiple
+                       times to increase verbosity: info, debug, and tracing (set -x)
 
-      --          Signals the end of options and disables further options processing.
-                    Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
+      --             Signals the end of options and disables further options processing.
+                       Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
 
 Report bugs to $MAINTAINER.
 EODEF
@@ -719,7 +725,7 @@ EOF
     #
     "${CAT_PROG}" - <<'EOF'
 
-function __t_f_aws_as_clear_out_profile () {
+function __t_f_aws_as_clear_out_creds () {
 
     unset AWS_PROFILE
     unset AWS_ACCESS_KEY_ID
@@ -728,6 +734,7 @@ function __t_f_aws_as_clear_out_profile () {
 
     __T_V_AWS_AS_PROFILE='-'
     __t_f_aws_as_maybe_update_PS1
+    return 0
 }
 EOF
 
@@ -1426,7 +1433,7 @@ function __t_f_aws_as_try_set_profile_as () {
     # unintended interactions between our aws-cli command line params
     # and any AWS_* variables that were set in the environment.
     #
-    __t_f_aws_as_clear_out_profile
+    __t_f_aws_as_clear_out_creds
 
     # We need to know whether or not we're dealing with a "User profile"
     # or "Role profile" because it dictates our approach for deal with
@@ -1490,6 +1497,11 @@ function __t_f_aws_as_main () {
             '--version' | '-V')
                 __t_f_aws_as_print_version
                 return 0
+                ;;
+
+            '--clear-creds' | '-C')
+                __t_f_aws_as_clear_out_creds
+                return $?
                 ;;
 
             '--export' | '-E')
@@ -1578,11 +1590,6 @@ function __t_f_aws_as_main () {
             __t_f_aws_as_print_help 1>&2
             return 1
         fi
-    fi
-
-    if test "${t_profile_name}" = '-'; then
-        __t_f_aws_as_clear_out_profile
-        return 0
     fi
 
     __t_f_aws_as_try_set_profile_as "${t_profile_name}"
