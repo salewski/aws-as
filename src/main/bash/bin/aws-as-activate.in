@@ -870,19 +870,41 @@ EOF
     "${CAT_PROG}" - <<'EOF'
 
 # Helper for __t_f_aws_as_try_set_profile_as()
-# @param: PROFILE (presumed validated)
+# @param: PROFILE   (required; presumed validated)
+# @param: FORCE_MFA (optional; defaults to 'false')
 #
 function __t_f_aws_as_try_set_profile_as_for_user () {
 
     local t_profile_name
+    local t_force_mfa
+
     local t_user_arn
     local t_mfa_serial
 
     t_profile_name=$1
 
+    t_force_mfa=false
+    if test $# -gt 1; then
+        t_force_mfa=$2
+    fi
+    if [[ "${t_force_mfa}" =~ ^(true|false)$ ]]; then :; else
+        printf "${__T_V_AWS_AS_PROG} (BUG): ${FUNCNAME}() t_force_mfa must be true or false, but got '%s'\n" \
+            "${t_force_mfa}" 1>&2
+        return 1
+    fi
+
     if test "${__T_V_AWS_AS_PROF_TO_UARN[${t_profile_name}]:+exists}"; then
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): User ARN found in cache (profile: %s)\n" "${t_profile_name}" 1>&2
+        fi
+
         t_user_arn=${__T_V_AWS_AS_PROF_TO_UARN[${t_profile_name}]}
     else
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): User ARN was not found in cache (profile: %s)\n" "${t_profile_name}" 1>&2
+            printf "${__T_V_AWS_AS_PROG} (debug): invoking 'sts get-caller-identity' to obtain User ARN (profile: %s)\n" "${t_profile_name}" 1>&2
+        fi
+
         # We'll have to ask sts:GetCallerIdentity for it, but we'll cache
         # the answer for this profile so we do need to keep asking in the
         # future.
@@ -924,6 +946,20 @@ function __t_f_aws_as_try_set_profile_as_for_user () {
         printf "${__T_V_AWS_AS_PROG} (debug): t_mfa_serial is: '%s'\n" "${t_mfa_serial}" 1>&2
     fi
 
+    # If the caller has insisted that MFA be used to obtain the temporary
+    # session token creds, and the aws-cli configuration does not include
+    # our 'aws-as'-specific 'aws_as_mfa_serial' key, then we will not be
+    # able to fulfill the request.
+    #
+    if $t_force_mfa \
+    && test -z "${t_mfa_serial}"; then
+        # A "force MFA" is done from the content of a profile for a Role
+        # first attempting to authenticate with the creds from a
+        # 'source_profile', hence the language here.
+        printf "${__T_V_AWS_AS_PROG} (error): profile config for Role's 'source_profile' (%s) requires 'aws_as_mfa_serial' setting\n" "${t_profile_name}" 1>&2
+        return 1
+    fi
+
     # This is similar to what aws-cli creates the hashcodes used for the
     # cached IAM Role creds.
     #
@@ -958,9 +994,7 @@ else:
 
     if ${__T_V_AWS_AS_DEBUGGING}; then
         printf "${__T_V_AWS_AS_PROG} (debug): cache filepath is '%s'\n" "${t_fpath}" 1>&2
-    fi
 
-    if ${__T_V_AWS_AS_DEBUGGING}; then
         if test -e "${t_fpath}"; then
             printf "${__T_V_AWS_AS_PROG} (debug): cache file exists: '%s'\n" "${t_fpath}" 1>&2
         else
@@ -1076,7 +1110,11 @@ else:
             t_subcmd_opts+=("${t_mfa_token_code}")
         fi
 
-        # We grap the raw JSON output whole; that will be the content of
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): invoking 'sts get-session-token' for profile %s\n" "${t_profile_name}" 1>&2
+        fi
+
+        # We grab the raw JSON output whole; that will be the content of
         # our new cache file.
         #
         local t_raw_json_rsp
@@ -1171,6 +1209,9 @@ EOF
     "${CAT_PROG}" - <<'EOF'
 
 # Helper for __t_f_aws_as_try_set_profile_as()
+#
+# Assumes credentials for the configured 'source_profile' are already in-effect.
+#
 # @param: PROFILE (presumed validated)
 #
 function __t_f_aws_as_try_set_profile_as_for_role () {
@@ -1179,12 +1220,28 @@ function __t_f_aws_as_try_set_profile_as_for_role () {
 
     t_profile_name=$1
 
-    local t_mfa_serial=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'mfa_serial')
+    local t_role_arn=$("${__T_V_AWS_AS_AWS_PROG}"   --profile "${t_profile_name}" configure get 'role_arn')
     local t_role_sessn=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'role_session_name')
 
+    # Any needed MFA-based authorization activity should have been taken
+    # care of by the time the current function is called, but we stil lookup
+    # the MFA device serial number here for use in our cache file keys. This
+    # keeps our cachefile key generation close/identical to the scheme used
+    # by aws-cli.
+    local t_mfa_serial=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'mfa_serial')
+
     if ${__T_V_AWS_AS_DEBUGGING}; then
-        printf "${__T_V_AWS_AS_PROG} (debug): mfa_serial from aws-cli config: '%s'\n" "${t_mfa_serial}" 1>&2
+        printf "${__T_V_AWS_AS_PROG} (debug): role_arn from aws-cli config: '%s'\n" "${t_role_arn}" 1>&2
         printf "${__T_V_AWS_AS_PROG} (debug): role_session_name from aws-cli config: '%s'\n" "${t_role_sessn}" 1>&2
+        printf "${__T_V_AWS_AS_PROG} (debug): mfa_serial from aws-cli config: '%s'\n" "${t_mfa_serial}" 1>&2
+    fi
+
+    if test -z "${t_role_arn}"; then
+        {
+            printf "${__T_V_AWS_AS_PROG} (error): profile (%s) has no 'role_arn' configured\n" "${t_profile_name}"
+            printf "    HINT: aws --profile '%s' configure set 'role_arn' 'ROLE-ARN-VALUE'\n" "${t_profile_name}"
+        } 1>&2
+        return 1
     fi
 
     # If the role session name from the aws-cli config is not set, then we
@@ -1242,111 +1299,111 @@ else:
         printf "${__T_V_AWS_AS_PROG} (debug): generated cache file key for role is '%s'\n" "${t_cachefile_key}" 1>&2
     fi
 
-# FIXME: AL.DEBUG working here
-    local t_fpath="${HOME}/.aws/cli/cache/${t_cachefile_key}.json"
+    # At the time of writing (2020-09), the behavior of aws-cli (2.0.46) is this:
+    #
+    #     * If an AWS operation is performed using an explicitly named
+    #       aws-cli profile for a Role, then aws-cli will perform an
+    #       sts:AssumeRole operation behind the scenes (prompting the
+    #       user for an MFA token code, if necessary) and cache the
+    #       temporary credentials obtained. The cached creds will then
+    #       be reused on other aws-cli invocations that also explicitly
+    #       specify that profile.
+    #
+    #     * If an AWS operation is performed using the AWS_* cred. vars
+    #       in the environment -- without explicitly specifying any
+    #       particular aws-cli profile -- then no behind the scenes
+    #       caching is performed by aws-cli (even if the operation
+    #       happens to be sts:AssumeRole).
+    #
+    # Since our behavior is to use the source_profile creds already in
+    # the environment, aws-cli will not cache the temporary creds obtained
+    # by our assume-role invocation below.
+    #
+    # We therefore do our own caching of the assume-role creds, but do so
+    # in the same basic way that aws-cli does. The main difference being
+    # that we only write the creds to the cache directory specific to this
+    # program.
+    #
+#    local t_fpath="${HOME}/.aws/cli/cache/${t_cachefile_key}.json"
+    local t_fpath="${__T_V_AWS_AS_CACHE_DIR}/${t_cachefile_key}.json"
 
     if ${__T_V_AWS_AS_DEBUGGING}; then
         printf "${__T_V_AWS_AS_PROG} (debug): cache filepath is '%s'\n" "${t_fpath}" 1>&2
-    fi
 
-    if ${__T_V_AWS_AS_DEBUGGING}; then
-        if test -e "${t_fpath}"; then
-            printf "${__T_V_AWS_AS_PROG} (debug): cache file exists: '%s'\n" "${t_fpath}" 1>&2
-        else
-            printf "${__T_V_AWS_AS_PROG} (debug): cache file does not (yet) exist: '%s'\n" "${t_fpath}" 1>&2
-        fi
-    fi
-
-    if test -e "${t_fpath}"; then :; else
-
-        # If the aws-cli cache file was not found for a given Role-base
-        # profile, then one of the following may be true:
-        #
-        #     1. the profile has never been used (maybe because it is
-        #        new, or the user has changed its configuration in such
-        #        a way that its SHA-1 has has changed)
-        #
-        #     2. the cache file was deleted (for whatever reason)
-        #
-        #     3. some future version of the aws-cli program started using
-        #        a different approach to producing the SHA-1 hashes, and
-        #        this code is no longer in alignment with what it is doing
-        #
-        #     4. ???
-        #
-        # We'll force an authentication event for the profile, and then
-        # check again.
-        #
-        # However, if the profile requires MFA authentication, we will
-        # handle ourselves the prompting the user for the MFA token code.
-        # The reason for this is that aws-cli will behave in a wonky way
-        # that is difficult to error check if we omit the '--token-code'
-        # option below and rely on it to do the prompting. (See notes
-        # below for more details.)
-
-        if test -n "${t_mfa_serial}"; then
-
-            # This profile requires MFA authentication in order to assume
-            # the role
-
-# FIXME: We know we're dealing with a profile for a Role, so the MFA-based
-#        authentication needs to be done in the context of the IAM User
-#        assuming the role. Delegate that to some other piece of code, and
-#        then resume here once the sts:GetSessionToken temporary creds are
-#        configured in the environment.
-
-            # There is the tiniest of chances that the user (or more likely,
-            # some other tool) has just set the MFA token in the aws-cli
-            # configuration file(s). The key name used, though, would be
-            # non-standard, as there currently (2020-09) is no official
-            # support for any specific key for that purpose.
-            #
-            # XXX: consider adding support for the mfa token code key names
-            #      used by other tools seen in the wild, and use the found value
-            #      before falling back on prompting the user for it (as we do here).
-            #
-            if test -t 0; then :; else
-                printf "${__T_V_AWS_AS_PROG} (error): need to prompt user for MFA token, but stdin is not a terminal; stopping\n" 1>&2
-                return 1
-            fi
-            # Prompt here is designed to look just like the one emitted by aws-cli:
-            #
-            #      Enter MFA code for <mfa-serial-number>:
-            #
-            # We'll wait 90 seconds for the user to enter the value before giving
-            # up. That should be enough time that any futzing with the device can be
-            # accommodated.
-            #
-            local t_mfa_token_code
-            read -r -s -t 90 -p "Enter MFA code for ${t_mfa_serial}: " t_mfa_token_code
-            if test $? -ne 0; then
-                # If our read timed-out or was interrupted, we will not retry
-                printf '\n'"${__T_V_AWS_AS_PROG} (error): was unable to obtain MFA code for device '%s'; stopping\n" \
-                    "${t_mfa_serial}" 1>&2
-                return 1
-            fi
-            printf '\n'  # advance the line, post-prompting
-
-            # XXX: Writing in 2020-09, a valid MFA token is a six-digit code. We are
-            #      hard-coding that here to optimize for the current common case, but
-            #      we'll need to change this code in the future if the format changes
-            #      (e.g., if AWS starts accepting more than six digits).
-            #
-            if [[ ${t_mfa_token_code} =~ ^[[:digit:]]{6}$ ]]; then :; else
-                printf "${__T_V_AWS_AS_PROG} (error): invalid MFA code entered -- must be exactly six digits; stopping\n" 1>&2
-                return 1
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            if test -e "${t_fpath}"; then
+                printf "${__T_V_AWS_AS_PROG} (debug): cache file exists: '%s'\n" "${t_fpath}" 1>&2
+            else
+                printf "${__T_V_AWS_AS_PROG} (debug): cache file does not (yet) exist: '%s'\n" "${t_fpath}" 1>&2
             fi
         fi
+    fi
+
+    local t_access_key_id
+    local t_secret_access_key
+    local t_session_token
+    local t_expiration_utc
+
+    if test -e "${t_fpath}"; then
+
+        # read cached creds and expiration timestamp from file cache
+        # (xargs is there to flatten multiple lines down into one)
+        read -r t_access_key_id     \
+                t_secret_access_key \
+                t_session_token     \
+                t_expiration_utc <  \
+          <("${__T_V_AWS_AS_XARGS_PROG}" < <("${__T_V_AWS_AS_JQ_PROG}" --raw-output \
+                '.Credentials | .AccessKeyId, .SecretAccessKey, .SessionToken, .Expiration' \
+                < "${t_fpath}"))
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to parse role creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_access_key_id}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty access key from role creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_secret_access_key}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty secret access key from role creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_session_token}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty session token from role creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+        if test -z "${t_expiration_utc}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): parsed empty expiration timestamp from role creds cache file: %s\n" \
+                "${t_fpath}" 1>&2
+            return 1
+        fi
+
+    else
+
+        # obtain temporary creds (sts:AssumeRole) and cache them in file
+
+        # Note: We never need to deal with MFA codes here because our
+        #       source_profile creds have already been obtained and are
+        #       active in the environment when this function gets called.
 
         local -a t_global_opts=()
         local -a t_srvice_opts=()
         local -a t_subcmd_opts=()
 
+        # CAREFUL: It is important that we DO NOT specify the '--profile'
+        #          option here, as that would cause aws-cli to ignore the
+        #          AWS_* cred. vars. currently active in the environment.
+
         t_global_opts+=('--output')
         t_global_opts+=('json')
 
-        t_global_opts+=('--profile')
-        t_global_opts+=("${t_profile_name}")
+        # CAREFUL: It is important that we DO NOT specify the '--serial-number'
+        #          and '--token-code' options here. Our currently active
+        #          AWS_* cred. vars. have context info that indicates that
+        #          authentication was performed with MFA, if necessary.
 
         t_subcmd_opts+=('--role-arn')
         t_subcmd_opts+=("${t_role_arn}")
@@ -1354,46 +1411,99 @@ else:
         t_subcmd_opts+=('--role-session-name')
         t_subcmd_opts+=("${t_role_sessn}")
 
-        if test -n "${t_mfa_serial}"; then
-#            t_subcmd_opts+=('--serial-number')
-#            t_subcmd_opts+=("${t_mfa_serial}")
-
-            t_subcmd_opts+=('--token-code')
-            t_subcmd_opts+=("${t_mfa_token_code}")
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): invoking 'sts assume-role' for role: %s\n" "${t_role_arn}" 1>&2
         fi
 
-set -x
-        local t_assume_role_json_output=$("${__T_V_AWS_AS_AWS_PROG}" "${t_global_opts[@]}" \
-                                                                 sts "${t_srvice_opts[@]}" \
-                                                         assume-role "${t_subcmd_opts[@]}")
-        local t_estat=$?
-set +x
-printf "ALJUNK: t_estat: %s\n"  "${t_estat}" 1>&2
+        # We grab the raw JSON output whole; that will be the content of
+        # our new cache file.
+        #
+        # Note that we manually inject the AWS_* cred. vars. from our source
+        # provile into the environment of the subprocess. Though present in
+        # our currernt environment, they may or may not be exported (by
+        # default they are not; see --export/--unexport).
+        #
+        local t_raw_json_rsp
+        t_raw_json_rsp=$(AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}           \
+                         AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}   \
+                         AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}           \
+                         \
+                         "${__T_V_AWS_AS_AWS_PROG}" "${t_global_opts[@]}" \
+                                                sts "${t_srvice_opts[@]}" \
+                                        assume-role "${t_subcmd_opts[@]}")
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to assume role: %s (from profile: %s)\n" \
+            "${t_role_arn}" "${t_profile_name}" 1>&2
+            return 1
+        fi
+        if test -z "${t_raw_json_rsp}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty JSON output from assume-role (???) for role %s (from profile: %s)\n" \
+            "${t_role_arn}" "${t_profile_name}" 1>&2
+            return 1
+        fi
 
-       unset t_subcmd_opts
-       unset t_srvice_opts
-       unset t_global_opts
-       # CAREFUL: aws-cli is wonky in that it may have exited with status 0 /and/
-       #          emitted an error indicating that MFA authentication failed /and/
-       #          actually succeeded in authenticating and updating the cache file.
-       if test $t_estat -ne 0; then
-           printf "${__T_V_AWS_AS_PROG} (error): was unable to assume role (%s) for profile: %s\n" \
-           "${t_role_arn}" \
-           "${t_profile_name}" 1>&2
-           return 1
-       fi
-       if test -z "${t_assume_role_json_output}"; then
-           printf "${__T_V_AWS_AS_PROG} (error): received empty JSON output from assume role operation (%s) for profile %s\n" \
-               "${t_role_arn}" \
-               "${t_profile_name}" 1>&2
-           return 1
-       fi
+        # read cached creds and expiration timestamp from raw JSON output
+        # (xargs is there to flatten multiple lines down into one)
+        read -r t_access_key_id     \
+                t_secret_access_key \
+                t_session_token     \
+                t_expiration_utc <  \
+            <("${__T_V_AWS_AS_XARGS_PROG}" < <("${__T_V_AWS_AS_JQ_PROG}" --raw-output \
+                '.Credentials | .AccessKeyId, .SecretAccessKey, .SessionToken, .Expiration' \
+                <<< "${t_raw_json_rsp}"))
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to parse raw JSON output from assume-role for role %s (from profile: %s)\n" \
+            "${t_role_arn}" "${t_profile_name}" 1>&2
+            return 1
+        fi
+        if test -z "${t_access_key_id}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty role access key from parsed session token creds\n" 1>&2
+            return 1
+        fi
+        if test -z "${t_secret_access_key}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty role secret access key from parsed session token creds\n" 1>&2
+            return 1
+        fi
+        if test -z "${t_session_token}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty role session token from parsed session token creds\n" 1>&2
+            return 1
+        fi
+        if test -z "${t_expiration_utc}"; then
+            printf "${__T_V_AWS_AS_PROG} (error): obtained empty role expiration timestamp from parsed session token creds\n" 1>&2
+            return 1
+        fi
 
-printf "ALJUNK: JSON output: %s\n"  "${t_assume_role_json_output}" 1>&2
+        # create a new cache file for these temporary User creds
+        #
+        > "${t_fpath}"
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to create role creds cache file: %s\n" "${t_fpath}" 1>&2
+            return 1
+        fi
+        "${__T_V_AWS_AS_CHMOD_PROG}" '0600' "${t_fpath}"
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to set perms on newly created role creds cache file: %s\n" "${t_fpath}" 1>&2
+            return 1
+        fi
+        printf '%s\n' "${t_raw_json_rsp}" > "${t_fpath}"
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to write JSON content to newly created role creds cache file: %s\n" "${t_fpath}" 1>&2
+            return 1
+        fi
+    fi
 
-   fi
+    # place role creds into environment
+    #
+    AWS_ACCESS_KEY_ID=${t_access_key_id}
+    AWS_SECRET_ACCESS_KEY=${t_secret_access_key}
+    AWS_SESSION_TOKEN=${t_session_token}
 
-# FIXME: Confirm here that our t_fpath (cache file) exists, and then use it to populate the relevant AWS_* env vars
+    # (Maybe) create visual indicator in
+    #
+    __T_V_AWS_AS_PROFILE=${t_profile_name}
+    __t_f_aws_as_maybe_update_PS1
+
+    return 0
 }
 EOF
 
@@ -1487,8 +1597,59 @@ function __t_f_aws_as_try_set_profile_as () {
     fi
 
     if $t_profile_is_for_iam_role; then
-        __t_f_aws_as_try_set_profile_as_for_role "${t_profile_name}"
 
+        # Two-step process:
+        # In the aws-cli config, a profile for an IAM Role will have a
+        # 'source_profile' key that references a non-Role profile with
+        # long-term credentials that can be used to assume the Role. We
+        # will first switch to that non-Role profile, and then proceed
+        # to obtain the temporary credentials for the Role profile.
+        #
+        # If the non-Role profile requires MFA authentication, or if the
+        # Role profile requires that the actor assuming the Role has been
+        # authenticated using MFA, then any prompting the user for a MFA
+        # token will be done as part of our activity of switching to the
+        # non-Role profile. So by the time we go to obtain the temporary
+        # credentials for the Role profile, the MFA-verified temporary
+        # creds will already be cached and in-effect in our environment.
+
+        local t_role_requires_mfa=false
+        local t_mfa_serial=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'mfa_serial')
+        if test -n "${t_mfa_serial}"; then
+            t_role_requires_mfa=true
+        fi
+
+        local t_source_profile_name=$("${__T_V_AWS_AS_AWS_PROG}" --profile "${t_profile_name}" configure get 'source_profile')
+        if test -z "${t_source_profile_name}"; then
+            # A profile configuration for a Role must have a source_profile
+            # key, so this error just represents a misconfiguration.
+            printf "${__T_V_AWS_AS_PROG} (error): profile config for Role is missing 'source_profile' setting: %s\n" "${t_profile_name}" 1>&2
+            return 1
+        fi
+
+        # This will be fast if the creds are already cached
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): step 1 of 2: switching to creds for source_profile (%s)\n" "${t_source_profile_name}" 1>&2
+        fi
+        __t_f_aws_as_try_set_profile_as_for_user "${t_source_profile_name}" "${t_role_requires_mfa}"
+
+        if test $? -ne 0; then
+            # Presumably a more specific error message was already emitted
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to temporarily switch to source_profile: %s\n" "${t_profile_name}" 1>&2
+            return 1
+        fi
+
+        # Establish our new "switched to" profile settings, even though only temporary
+        #
+        __T_V_AWS_AS_PROFILE=${t_profile_name}
+        __t_f_aws_as_maybe_update_PS1
+
+        # Now switch to the profile for the Role that was directly requested by the user
+        #
+        if ${__T_V_AWS_AS_DEBUGGING}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): step 2 of 2: switching to creds for role profile (%s)\n" "${t_profile_name}" 1>&2
+        fi
+        __t_f_aws_as_try_set_profile_as_for_role "${t_profile_name}"
     else
         __t_f_aws_as_try_set_profile_as_for_user "${t_profile_name}"
     fi
