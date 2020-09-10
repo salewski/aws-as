@@ -693,7 +693,8 @@ usage: \$__T_V_AWS_AS_PROG [-v...] { -h | --help }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -U | --unexport }
   or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] AWS_CLI_PROFILE
 
-Switch to specified profile, authenticating with MFA, if necessary.
+Switch to using creds from the specified aws-cli profile,
+authenticating with MFA, if necessary.
 
 CAREFUL: Bundling of short-form options is not (yet?) supported.
 
