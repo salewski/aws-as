@@ -611,7 +611,9 @@ EOF
     #        it.
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_DOT_D_DIR')
-    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CACHE_DIR')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CACHE_BASE_DIR')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CACHE_DIR_USER_CREDS')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CACHE_DIR_ROLE_CREDS')
     "${CAT_PROG}" - <<'EOF'
 
 __T_V_AWS_AS_DOT_D_DIR="${HOME}/.aws-as.d"
@@ -629,21 +631,54 @@ if test -d "${__T_V_AWS_AS_DOT_D_DIR}"; then :; else
 #        return 1
 #    fi
 fi
-__T_V_AWS_AS_CACHE_DIR="${__T_V_AWS_AS_DOT_D_DIR}/cache"
-if test -d "${__T_V_AWS_AS_CACHE_DIR}"; then :; else
-    "${__T_V_AWS_AS_MKDIR_PROG}" --mode '0700' "${__T_V_AWS_AS_CACHE_DIR}"
+__T_V_AWS_AS_CACHE_BASE_DIR="${__T_V_AWS_AS_DOT_D_DIR}/cache"
+if test -d "${__T_V_AWS_AS_CACHE_BASE_DIR}"; then :; else
+    "${__T_V_AWS_AS_MKDIR_PROG}" --mode '0700' "${__T_V_AWS_AS_CACHE_BASE_DIR}"
     if test $? -ne 0; then
         printf "${__T_V_AWS_AS_PROG} (error): was unable to create dir \"%s\"; stopping\n" \
-               "${__T_V_AWS_AS_CACHE_DIR}" 1>&2
+               "${__T_V_AWS_AS_CACHE_BASE_DIR}" 1>&2
         return 1
     fi
-#    "${__T_V_AWS_AS_CHMOD_PROG}" 0700 "${__T_V_AWS_AS_CACHE_DIR}"
+#    "${__T_V_AWS_AS_CHMOD_PROG}" 0700 "${__T_V_AWS_AS_CACHE_BASE_DIR}"
 #    if test $? -ne 0; then
 #        printf "${__T_V_AWS_AS_PROG} (error): was unable to chmod dir \"%s\"; stopping\n" \
-#               "${__T_V_AWS_AS_CACHE_DIR}" 1>&2
+#               "${__T_V_AWS_AS_CACHE_BASE_DIR}" 1>&2
 #        return 1
 #    fi
 fi
+
+__T_V_AWS_AS_CACHE_DIR_USER_CREDS="${__T_V_AWS_AS_CACHE_BASE_DIR}/from-get-session-token"
+if test -d "${__T_V_AWS_AS_CACHE_DIR_USER_CREDS}"; then :; else
+    "${__T_V_AWS_AS_MKDIR_PROG}" --mode '0700' "${__T_V_AWS_AS_CACHE_DIR_USER_CREDS}"
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to create dir \"%s\"; stopping\n" \
+               "${__T_V_AWS_AS_CACHE_DIR_USER_CREDS}" 1>&2
+        return 1
+    fi
+#    "${__T_V_AWS_AS_CHMOD_PROG}" 0700 "${__T_V_AWS_AS_CACHE_DIR_USER_CREDS}"
+#    if test $? -ne 0; then
+#        printf "${__T_V_AWS_AS_PROG} (error): was unable to chmod dir \"%s\"; stopping\n" \
+#               "${__T_V_AWS_AS_CACHE_DIR_USER_CREDS}" 1>&2
+#        return 1
+#    fi
+fi
+
+__T_V_AWS_AS_CACHE_DIR_ROLE_CREDS="${__T_V_AWS_AS_CACHE_BASE_DIR}/from-assume-role"
+if test -d "${__T_V_AWS_AS_CACHE_DIR_ROLE_CREDS}"; then :; else
+    "${__T_V_AWS_AS_MKDIR_PROG}" --mode '0700' "${__T_V_AWS_AS_CACHE_DIR_ROLE_CREDS}"
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to create dir \"%s\"; stopping\n" \
+               "${__T_V_AWS_AS_CACHE_DIR_ROLE_CREDS}" 1>&2
+        return 1
+    fi
+#    "${__T_V_AWS_AS_CHMOD_PROG}" 0700 "${__T_V_AWS_AS_CACHE_DIR_ROLE_CREDS}"
+#    if test $? -ne 0; then
+#        printf "${__T_V_AWS_AS_PROG} (error): was unable to chmod dir \"%s\"; stopping\n" \
+#               "${__T_V_AWS_AS_CACHE_DIR_ROLE_CREDS}" 1>&2
+#        return 1
+#    fi
+fi
+
 EOF
 
     t_cleanup_statements+=(':')
@@ -1183,7 +1218,7 @@ else:
         printf "${__T_V_AWS_AS_PROG} (debug): generated cache file key for user is '%s'\n" "${t_cachefile_key}" 1>&2
     fi
 
-    local t_fpath="${__T_V_AWS_AS_CACHE_DIR}/${t_cachefile_key}.json"
+    local t_fpath="${__T_V_AWS_AS_CACHE_DIR_USER_CREDS}/${t_cachefile_key}.json"
 
     if ${__T_V_AWS_AS_DEBUGGING}; then
         printf "${__T_V_AWS_AS_PROG} (debug): cache filepath is '%s'\n" "${t_fpath}" 1>&2
@@ -1583,7 +1618,7 @@ else:
     # program.
     #
 #    local t_fpath="${HOME}/.aws/cli/cache/${t_cachefile_key}.json"
-    local t_fpath="${__T_V_AWS_AS_CACHE_DIR}/${t_cachefile_key}.json"
+    local t_fpath="${__T_V_AWS_AS_CACHE_DIR_ROLE_CREDS}/${t_cachefile_key}.json"
 
     if ${__T_V_AWS_AS_DEBUGGING}; then
         printf "${__T_V_AWS_AS_PROG} (debug): cache filepath is '%s'\n" "${t_fpath}" 1>&2
