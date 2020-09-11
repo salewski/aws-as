@@ -115,6 +115,17 @@ dnl if test -z "$CURL_PROG"; then
 dnl     AC_MSG_ERROR([curl not found])
 dnl fi
 
+dnl FIXME: We need a date(1) program capable of emitting time in UTC, in the
+dnl        ISO-8601 format. We should test for it directly, but the following
+dnl        invocation seems to be portable between the date(1) implementations
+dnl        from the GNU coreutils and that from FreeBSD.
+dnl            $ date -u -Iseconds
+dnl
+AC_PATH_PROG([DATE_PROG], [date])
+if test -z "$DATE_PROG"; then
+    AC_MSG_ERROR([date not found])
+fi
+
 AC_PATH_PROG([ECHO_PROG], [echo])
 if test -z "$ECHO_PROG"; then
     AC_MSG_ERROR([echo not found])
@@ -285,6 +296,7 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]BASH_SH[@],$(BASH_SH),g'"'"' \
   -e '"'"'s,[@]CAT[@],$(CAT),g'"'"' \
   -e '"'"'s,[@]CHMOD_PROG[@],$(CHMOD_PROG),g'"'"' \
+  -e '"'"'s,[@]DATE_PROG[@],$(DATE_PROG),g'"'"' \
   -e '"'"'s,[@]ECHO_PROG[@],$(ECHO_PROG),g'"'"' \
   -e '"'"'s,[@]EXPR_PROG[@],$(EXPR_PROG),g'"'"' \
   -e '"'"'s,[@]JQ_PROG[@],$(JQ_PROG),g'"'"' \
@@ -414,6 +426,7 @@ printf "\n"
 printf "                           aws: %s\n" "`__poor_mans_expand_file_name AWS_PROG`"
 printf "                          bash: %s\n" "`__poor_mans_expand_file_name BASH_SH`"
 printf "                         chmod: %s\n" "`__poor_mans_expand_file_name CHMOD_PROG`"
+printf "                          date: %s\n" "`__poor_mans_expand_file_name DATE_PROG`"
 printf "                            jq: %s\n" "`__poor_mans_expand_file_name JQ_PROG`"
 printf "                         mkdir: %s\n" "`__poor_mans_expand_file_name MKDIR_PROG`"
 printf "                          perl: %s\n" "`__poor_mans_expand_file_name PERL`"
