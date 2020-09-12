@@ -544,7 +544,7 @@ EOF
     "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
 __T_V_AWS_AS_AWS_PROG='${AWS_PROG}'
-__T_V_AWS_AS_AWS_PROG='${AWS_VAULT_PROG}'
+__T_V_AWS_AS_AWS_VAULT_PROG='${AWS_VAULT_PROG}'
 __T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
 __T_V_AWS_AS_DATE_PROG='${DATE_PROG}'
 __T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
@@ -774,11 +774,26 @@ EODEF
 EOF
 
 
+    # Note that aws-vault reads the profiles from ~/.aws/config, just like
+    # 'aws configure list-profiles'. But aws-vault does it much faster.
+    #
+    # Note, too, that our error message indicates "aws-cli profiles", even
+    # though it is the 'aws-vault' command being invoked; that is by design,
+    # not a typo.
+    #
+    # See also:
+    #     https://github.com/salewski/aws-as/issues/23
+    #
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_list_profiles () {
 
-    "${__T_V_AWS_AS_AWS_PROG}" configure list-profiles
+    local t_dopt=''
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        t_dopt='--debug'
+    fi
+
+    "${__T_V_AWS_AS_AWS_VAULT_PROG}" ${t_dopt} list --profiles
     if test $? -ne 0; then
         printf "${__T_V_AWS_AS_PROG} (error): was error while attempting to list the aws-cli profiles\n" 1>&2
         return 1
@@ -1903,13 +1918,25 @@ function __t_f_aws_as_try_set_profile_as () {
         return 1
     fi
 
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (info): querying aws-cli for current list of profiles\n" 1>&2
+    fi
+
     local -a t_all_legit=()
-    for t_one_pname in $("${__T_V_AWS_AS_AWS_PROG}" configure list-profiles); do
+    local t_dopt=''
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        t_dopt='--debug'
+    fi
+    for t_one_pname in $("${__T_V_AWS_AS_AWS_VAULT_PROG}" ${t_dopt} list --profiles); do
         t_all_legit+=("${t_one_pname}")
     done
     if test $? -ne 0; then
         printf "${__T_V_AWS_AS_PROG} (error): was unable to obtain list of all legit aws-cli profile names\n" 1>&2
         return 1
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (info): aws-vault provided list of %d profiles\n" "${#t_all_legit[@]}" 1>&2
     fi
 
     local t_is_legit=false

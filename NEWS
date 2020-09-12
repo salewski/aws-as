@@ -30,7 +30,17 @@ which they were fixed will be noted here, as well.
 
 ** improvements
 
-   (None)
+*** aws-vault integration
+
+    The 'aws-as' program now uses the 'aws-vault' program for some tasks that
+    were previously done directly, or more slowly through aws-cli.
+
+**** listing the aws-cli profiles (aws-as -L) now uses aws-vault internally
+
+     "aws-as: 'L' (--list-profiles) would be much faster if implemented via 'aws-vault' (rather than aws-cli)"
+     https://github.com/salewski/aws-as/issues/23
+
+     Speed is a feature.
 
 
 * aws-as 0.1.0 (2020-09-12)
