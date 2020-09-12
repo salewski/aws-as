@@ -56,8 +56,11 @@ TRACING=false      # enable with three or more '-v' (--verbose) opts
 # (with hyphen chars changed to underscores).
 
 CAT_PROG="${CAT:-@CAT@}"
-CHMOD_PROG="${CHMOD:-@CHMOD_PROG@}"
+
 DATE_PROG="${DATE:-@DATE_PROG@}"
+TRUE_PROG="${TRUE:-@TRUE_PROG@}"
+
+CHMOD_PROG="${CHMOD:-@CHMOD_PROG@}"
 MKDIR_PROG="${MKDIR:-@MKDIR_PROG@}"
 XARGS_PROG="${XARGS:-@XARGS_PROG@}"
 
@@ -536,6 +539,7 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_VAULT_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CHMOD_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_DATE_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_TRUE_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_MKDIR_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PYTHON3_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_JQ_PROG')
@@ -547,6 +551,7 @@ __T_V_AWS_AS_AWS_PROG='${AWS_PROG}'
 __T_V_AWS_AS_AWS_VAULT_PROG='${AWS_VAULT_PROG}'
 __T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
 __T_V_AWS_AS_DATE_PROG='${DATE_PROG}'
+__T_V_AWS_AS_TRUE_PROG='${TRUE_PROG}'
 __T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
 __T_V_AWS_AS_PYTHON3_PROG='${PYTHON3_PROG}'
 __T_V_AWS_AS_JQ_PROG='${JQ_PROG}'
@@ -702,6 +707,7 @@ EOF
     t_cleanup_statements+=('unset -f __t_f_aws_as_unexport_cred_vars')
     t_cleanup_statements+=('unset -f __t_f_aws_as_list_profiles')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as2')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as_for_user')
     t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as_for_role')
 
@@ -2061,6 +2067,139 @@ function __t_f_aws_as_try_set_profile_as () {
 }
 EOF
 
+
+    "${CAT_PROG}" - <<'EOF'
+
+# @param: PROFILE
+function __t_f_aws_as_try_set_profile_as2 () {
+
+    local __required_count=1
+    if test $# -ne ${__required_count}; then
+        printf "${__T_V_AWS_AS_PROG} (BUG): ${FUNCNAME}() invoked with %d args; %d required\n" \
+            $# ${__required_count} 1>&2
+        return 1
+    fi
+
+    local t_profile_name
+
+    t_profile_name=$1
+
+    if test -z "${t_profile_name}"; then
+        printf "${__T_V_AWS_AS_PROG} (error): profile name may not be the empty string\n" 1>&2
+        return 1
+    fi
+
+    # XXX: Technically, there might be a way to use a blank profile name
+    #      in 'aws-cli', but for now we are not allowing it. Please let
+    #      reach out if this causes you grief for some reason.
+    #
+    if [[ "${t_profile_name}" =~ ^[[:space:]]*$ ]]; then
+        printf "${__T_V_AWS_AS_PROG} (error): profile name may not be blank\n" 1>&2
+        return 1
+    fi
+
+    # A need may arise for us to allow a force-override of this behavior, but
+    # for now we will just short-circuit (return early) since it looks like
+    # there is no work to be done.
+    #
+    if test "${t_profile_name}" = "${__T_V_AWS_AS_PROFILE}"; then
+        if ${__T_V_AWS_AS_BE_VERBOSE}; then
+            printf "${__T_V_AWS_AS_PROG} (info): requested profile name is the same as the current profile; nothing to do\n" 1>&2
+        fi
+        return 0
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (info): querying aws-cli for current list of profiles\n" 1>&2
+    fi
+
+    local -a t_all_legit=()
+    local t_dopt=''
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        t_dopt='--debug'
+    fi
+    for t_one_pname in $("${__T_V_AWS_AS_AWS_VAULT_PROG}" ${t_dopt} list --profiles); do
+        t_all_legit+=("${t_one_pname}")
+    done
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to obtain list of all legit aws-cli profile names\n" 1>&2
+        return 1
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        printf "${__T_V_AWS_AS_PROG} (info): aws-vault provided list of %d profiles\n" "${#t_all_legit[@]}" 1>&2
+    fi
+
+    local t_is_legit=false
+    for t_one_pname in "${t_all_legit[@]}"; do
+        if test "${t_one_pname}" = "${t_profile_name}"; then
+            t_is_legit=true
+            break
+        fi
+    done
+
+    if $t_is_legit; then :; else
+        {
+            printf "${__T_V_AWS_AS_PROG} (error): \"%s\" is not a recognized aws-cli profile name\n" \
+                   "${t_profile_name}"
+            printf '    Legit profile names include:\n'
+            for t_one_legit in "${t_all_legit[@]}"; do
+                printf '        %s\n' "${t_one_legit}"
+            done
+        } 1>&2
+        return 1
+    fi
+
+    # Give ourselves a "clean slate", as it were. This also helps avoid
+    # unintended interactions between our aws-cli command line params
+    # and any AWS_* variables that were set in the environment.
+    #
+    __t_f_aws_as_clear_out_creds
+
+    # This invocation of 'aws-vault' is being performed for the side-effect of
+    # forcing the establishment, if necessary, of a session using temporary
+    # STS credentials for the specified profile.
+    #
+    # If there is an existing aws-vault "session" (there is a set of cached
+    # credentials), then the cached credentials will be re-used; no network
+    # call to the AWS API will be made.
+    #
+    # If there is not an existing "session", then aws-vault will start one by
+    # obtaining temporary creds appropriate for the specified aws-cli profile
+    # (sts:GetSessionToken or sts:AssumeRole). If the profile has the
+    # 'mfa_serial' config key present, then MFA will be used; this works for
+    # both User and Role profiles (aws-vault honors the 'mfa_serial' key in
+    # all profiles, even if 'aws-cli' only honors it for Role profiles).
+    #
+    local -a t_aws_vault_global_opts=()
+    local -a t_aws_vault_subcmd_opts=()
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+        t_aws_vault_global_opts+=('--debug')
+    fi
+
+    t_aws_vault_subcmd_opts+=("${t_profile_name}")
+    t_aws_vault_subcmd_opts+=('--')
+    t_aws_vault_subcmd_opts+=("${__T_V_AWS_AS_TRUE_PROG}")
+    
+    "${__T_V_AWS_AS_AWS_VAULT_PROG}" "${t_aws_vault_global_opts[@]}" \
+                                exec "${t_aws_vault_subcmd_opts[@]}"
+    if test $? -ne 0; then
+        # Presumably a more specific error message was already emitted
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to establish or confirm aws-vault session for profile\n" 1>&2
+        return 1
+    fi
+
+    # Finally, establish our new "switched to" profile settings
+    #
+    __T_V_AWS_AS_PROFILE=${t_profile_name}
+    __t_f_aws_as_maybe_update_PS1
+
+    return 0
+}
+EOF
+
+
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_main () {
@@ -2178,7 +2317,8 @@ function __t_f_aws_as_main () {
         fi
     fi
 
-    __t_f_aws_as_try_set_profile_as "${t_profile_name}"
+#    __t_f_aws_as_try_set_profile_as "${t_profile_name}"
+    __t_f_aws_as_try_set_profile_as2 "${t_profile_name}"
     if test $? -ne 0; then
 #        printf "${__T_V_AWS_AS_PROG} (error): error encountered why trying to switch to profile: \"%s\"; bailing out\n" "${t_profile_name}" 1>&2
         return 1

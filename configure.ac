@@ -201,6 +201,11 @@ dnl if test -z "$TR_PROG"; then
 dnl     AC_MSG_ERROR([tr not found])
 dnl fi
 
+AC_PATH_PROG([TRUE_PROG], [true])
+if test -z "$TRUE_PROG"; then
+    AC_MSG_ERROR([true not found])
+fi
+
 AC_PATH_PROG([XARGS_PROG], [xargs])
 if test -z "$XARGS_PROG"; then
     AC_MSG_ERROR([xargs not found])
@@ -316,6 +321,7 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]MKDIR_PROG[@],$(MKDIR_PROG),g'"'"' \
   -e '"'"'s,[@]PYTHON[@],$(PYTHON),g'"'"' \
   -e '"'"'s,[@]SED[@],$(SED),g'"'"' \
+  -e '"'"'s,[@]TRUE_PROG[@],$(TRUE_PROG),g'"'"' \
   -e '"'"'s,[@]XARGS_PROG[@],$(XARGS_PROG),g'"'"' \
 '
 ]
