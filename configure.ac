@@ -18,7 +18,7 @@ dnl     [AC_]PACKAGE_BUGREPORT
 dnl     [AC_]PACKAGE_URL
 dnl
 AC_INIT([[aws-as]],
-        [[0.1.0]],
+        [[0.1.1-snapshot]],
         [[Alan D. Salewski <salewski@att.net>]],
         [[aws-as]],
         [[https://github.com/salewski/aws-as]])
