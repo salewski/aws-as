@@ -1,0 +1,309 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>aws-as by salewski</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>aws-as</h1>
+        <p>Easily switch between cached sets of AWS STS credentials (command line tools)</p>
+
+        <p class="view"><a href="https://github.com/salewski/aws-as">View the Project on GitHub <small>salewski/aws-as</small></a></p>
+
+        <ul>
+          <li class="li-tarball-link"><span id="lbl-latest-tarball"><strong>Latest (released <code>2020-09-12</code>):</strong></span><br><a href="downloads/aws-as-0.1.0.tar.gz"><code>aws-as-0.1.0.tar.gz</code></a></li>
+        </ul>
+
+        <ul>
+<!--
+          <li><a href="https://github.com/salewski/aws-as/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/salewski/aws-as/tarball/master">Download <strong>TAR Ball</strong></a></li>
+-->
+
+          <li class="li-downloads-archive-link"><a href="downloads/"><strong>Downloads Archive</strong></a></li>
+
+<!--
+          <li><a href="https://github.com/salewski/aws-as">View On <strong>GitHub</strong></a></li>
+-->
+        </ul>
+
+      </header>
+      <section>
+        <h3>
+<a id="welcome-to-aws-as" class="anchor" href="#welcome-to-aws-as" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>'<code>aws-as</code>' project home page</h3>
+
+<p>The <code>aws-as</code> project provides a collection of tools for
+switching between cached sets of temporary AWS STS credentials for IAM User
+and/or Role when working at the command line.</p>
+
+<p>The <code>aws-as</code> command works with your
+existing <code>aws-cli</code> configuration and works alongside it to augment
+its capabilities. The <code>aws-as</code> programs treat the aws-cli
+configuration as a read-only resource, and never attempts to modify it in any
+way.</p>
+
+<p>The <code>aws-as</code> command supports the easy use of MFA for both Role and non-Role
+aws-cli profiles. Temporary credentials are cached and reused until they
+expire. Expired credentials are detected prior to use and new temporary
+credentials are obtained as needed. Re-authentication (with MFA, if
+necessary) is performed when needed.</p>
+
+<p>There is a non-standard <code>aws_as_mfa_serial</code> key that is introduced to cause
+<code>sts:GetSessionToken</code> temporary credentials to be obtained using MFA
+authentication. The <code>aws-cli</code> tool supports the MFA capability, but does not
+recognize any configuration that would cause it to prompt for an MFA token;
+with <code>aws-cli</code> the user must specify both the MFA device serial number and the token code
+on the command line. Adding the <code>aws_as_mfa_serial</code> to a non-Role profile
+allows <code>aws-as</code> to take care of those details for you (it invokes the more
+cumbersome <code>aws</code> command behind the scenes).</p>
+
+<h2>Installation</h2>
+<p>
+Installation should be as simple as:
+<pre>
+    $ ./configure   # add a --prefix=path/to/some/location to install someplace other than beneath /usr/local
+    $ make
+    $ make check    # optional, but encouraged
+    $ make install
+</pre>
+</p>
+
+
+<h2>Usage</h2>
+
+<p>Once installed, you use it like this (the changed prompt is documented
+below):
+<pre>
+      $ eval "$(aws-as-activate -s)"
+      (-) $
+</pre>
+That makes two commands (both implemented as bash functions) available in
+your shell environment:
+<pre>
+      aws-as-deactivate
+      aws-as
+</pre>
+
+<p>The <code>aws-as-deactivate</code> command causes all of the function code and variables
+"installed" by the above <code>eval</code> to be deleted from the shell environment; it
+basically puts things back to the way they were prior to the <code>eval</code>. The
+<code>AWS_*</code> variables (if any) that had been set in the environment previously
+are restored to the state they were found in.</p>
+
+<p>The <code>aws-as</code> command is the main tool used to switch between the credentials
+associated with different aws-cli profiles. Examples of basic use follows.</p>
+
+<p>List the aws-cli profiles:
+<pre>
+      $ aws-as -L
+      some-prof-name
+      some-other-prof-name
+      yet-another-prof-name
+</pre>
+Switch to a given profile:
+<pre>
+      $ aws-as some-prof-name
+      (some-prof-name) $
+</pre>
+
+<p>Note that the <code>$PS1</code> setting has been augmented with the name of the profile
+whose creds are currently in effect. The earlier prompt prefix <tt>"(-)"</tt>
+indicated that aws-as was active in the environment, but no profile had been
+selected to be active. If you change to a different profile, that other
+profile will be indicated:
+<pre>
+      $ aws-as some-other-prof-name
+      (some-other-prof-name) $
+</pre>
+
+<p>To go back to <em>not</em> having any profile be active, use the <code>-C</code> (<code>--clear-creds</code>)
+option:
+<pre>
+      (some-other-prof-name) $ aws-as -C
+      (-) $
+</pre>
+<p>To have aws-as remove itself entirely from your shell environment, invoke
+the 'aws-as-deactivate' command:
+<pre>
+      (-) $ aws-as-deactivate
+      $
+</pre>
+
+<p>Note that the <code>aws-as</code> command, even though implemented as a
+shell function, is intended to "feel like" a normal command line
+program. Among other things, it provides a meaningful return code (zero for
+success, non-zero for error) as an "exit status", and you can ask for its
+version:
+<pre>
+      $ aws-as --version
+      aws-as 0.1.0  (built: 2020-09-12 04:21:48)
+
+      Copyright (C) 2020 Alan D. Salewski <salewski@att.net>
+      License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.
+      This is free software: you are free to change and redistribute it.
+      There is NO WARRANTY, to the extent permitted by law.
+
+      Written by Alan D. Salewski.
+</pre>
+and it's help output:
+<pre>
+      $ aws-as --help
+      usage: aws-as [-v...] { -h | --help }
+        or:  aws-as [-v...] { -V | --version }
+        or:  aws-as [-v...] { -C | --clear-creds }
+        or:  aws-as [-v...] { -E | --export }
+        or:  aws-as [-v...] { -L | --list-profiles }
+        or:  aws-as [-v...] { -U | --unexport }
+        or:  aws-as [OPTION...] [--] AWS_CLI_PROFILE
+
+      Switch to using creds from the specified aws-cli profile,
+      authenticating with MFA, if necessary.
+
+      CAREFUL: Bundling of short-form options is not (yet?) supported.
+
+        -h, --help           Print this help message on stdout
+        -V, --version        Print the version of the program on stdout
+
+        -C, --clear-creds    Unset AWS_* credential variables in the environment
+
+        -E, --export         Mark the AWS_* credential variables for export
+        -U, --unexport       Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
+
+        -L, --list-profiles  Print list of aws-cli profiles on stdout
+
+        -v, --verbose        Print program progress messages on stderr. Specify multiple
+                               times to increase verbosity: info, debug, and tracing (set -x)
+
+            --               Signals the end of options and disables further options processing.
+                               Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
+
+      Report bugs to Alan D. Salewski <salewski@att.net>.
+</pre>
+
+<p>Note that the notion of "in-effect aws-cli profile" is handled
+indirectly. The profile name is used to obtain temporary AWS credentials,
+but the profile name is not reflected in the environment. That is, <code>aws-as</code>
+does not set the <code>AWS_PROFILE</code> environment variable that some programs are
+aware of. Instead, it sets the trio of variables <code>AWS_ACCESS_KEY_ID</code>,
+<code>AWS_SECRET_ACCESS_KEY</code>, and <code>AWS_SESSION_TOKEN</code>. Aside from using the
+profile name to augment the <code>$PS1</code> value, it does not actually maintain the
+internal notion of the "current" profile; the current profile is simply the
+one that corresponds to the credentials in the <code>AWS_*</code> variables.</p>
+
+<p>By default, the <code>AWS_*</code> variables are set in the current shell environment,
+but they are not exported. To export them, use the <code>-E</code> (<code>--export</code>) option:
+<pre>
+      (some-prof-name) $ aws-as -E
+</pre>
+
+To remove the export attribute from the <code>AWS_*</code> variables, use the <code>-U</code> (<code>--unexport</code>)
+option:
+<pre>
+      (some-prof-name) $ aws-as -U
+</pre>
+
+<p>To have the commands report what they are doing, use the <code>-v</code> (<code>--verbose</code>)
+option. You can specify <code>-v</code> more than once; each additional <code>-v</code> (up to
+three) increases the output verbosity. Three <code>-v</code> options cause tracing
+(<code>set -x</code>) to be enable within the context of the <code>aws-as</code> operation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h2>Future directions</h2>
+
+<p>
+The author is looking into replacing the <code>aws-as</code> built-in
+file-based caching by delegating that work to the <code>aws-vault</code> tool,
+which is not currently used by <code>aws-as</code>.
+</p>
+
+<br></br>
+
+<h2><tt>aws-as</tt> license</h2>
+<p>
+<pre>
+GPLv2+: GNU GPL version 2 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+</pre>
+</p>
+
+<p>
+Unless otherwise stated by a different license notice in a particular file,
+all files in the `aws-as' project are made available under the GNU
+GPL version 2, or (at your option) any later version.
+</p>
+
+<p>
+See the <a href="https://github.com/salewski/aws-as/blob/master/COPYING">COPYING</a> file for the full license.
+</p>
+
+<p>
+<pre>
+Copyright (C) 2020 Alan D. Salewski &lt;salewski@att.net&gt;
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+</pre>
+</p>
+
+
+<h3>
+<a id="authors-and-contributors" class="anchor" href="#authors-and-contributors" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+
+<p>The <code>aws-as</code> project code was written by <a href="https://github.com/salewski" class="user-mention">Alan D. Salewski</a>.</p>
+
+<p>The <a href="https://github.com/">GitHub</a> project page is located at:
+<ul>
+    <li><a href="https://github.com/salewski/aws-as">https://github.com/salewski/aws-as</a></li>
+</ul>
+</p>
+
+
+
+<!-- FIXME: add note and link to 'BUGS' file here -->
+
+      </section>
+
+      <footer>
+        <h3><a id="support-or-contact" class="anchor" href="#support-or-contact" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Support or Contact</h3>
+        <p>This project page is maintained (barely!) by <a href="https://github.com/salewski">Alan D. Salewski</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
