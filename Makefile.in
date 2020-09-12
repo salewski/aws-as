@@ -251,6 +251,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+TRUE_PROG = @TRUE_PROG@
 VERSION = @VERSION@
 XARGS_PROG = @XARGS_PROG@
 abs_builddir = @abs_builddir@
