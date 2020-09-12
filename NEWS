@@ -37,8 +37,8 @@ which they were fixed will be noted here, as well.
   This is the initial release of the 'aws-as' project.
 
   The 'aws-as' project provides a collection of tools for switching between
-  cached sets of AWS IAM User and/or Role credentials when working at the
-  command line.
+  cached sets of temporary AWS STS credentials for IAM Users and/or Roles when
+  working at the command line.
 
   The 'aws-as' command works with your existing 'aws-cli' configuration and
   works alongside it to augment its capabilities. The 'aws-as' programs treat
@@ -76,7 +76,7 @@ which they were fixed will be noted here, as well.
   "installed" by the above 'eval' to be deleted from the shell environment; it
   basically puts things back to the way they were prior to the 'eval'. The
   'AWS_*' variables (if any) that had been set in the environment previously
-  are restored to the state they were found it.
+  are restored to the state they were found in.
 
   The 'aws-as' command is the main tool used to switch between the credentials
   associated with different aws-cli profiles. Basic use looks like this:
