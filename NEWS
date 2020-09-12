@@ -39,3 +39,151 @@ which they were fixed will be noted here, as well.
   The 'aws-as' project provides a collection of tools for switching between
   cached sets of AWS IAM User and/or Role credentials when working at the
   command line.
+
+  The 'aws-as' command works with your existing 'aws-cli' configuration and
+  works alongside it to augment its capabilities. The 'aws-as' programs treat
+  the aws-cli configuration as a read-only resource, and never attempts to
+  modify it in any way.
+
+  The 'aws-as' command supports the easy use of MFA for both Role and non-Role
+  aws-cli profiles. Temporary credentials are cached and reused until they
+  expire. Expired credentials are detected prior to use and new temporary
+  credentials are obtained as needed. Re-authentication (with MFA, if
+  necessary) is performed when needed.
+
+  There is a non-standard 'aws_as_mfa_serial' key that is supported to cause
+  sts:GetSessionToken temporary credentials to be obtained using MFA
+  authentication. The aws-cli tool supports the MFA capability, but does not
+  recognize any configuration that would cause it to prompt for an MFA token;
+  the user must specify both the MFA device serial number and the token code
+  on the command line. Adding the 'aws_as_mfa_serial' to a non-Role profile
+  allows 'aws-as' to take care of those details for you (it invokes the more
+  cumbersome 'aws' command behind the scenes).
+
+  Once installed, you use it like this (the changed prompt is documented
+  below):
+
+      $ eval "$(aws-as-activate -s)"
+      (-) $
+
+  That makes two commands (both implemented as bash functions) available in
+  your shell environment:
+
+      aws-as-deactivate
+      aws-as
+
+  The 'aws-as-deactivate' causes all of the function code and variables
+  "installed" by the above 'eval' to be deleted from the shell environment; it
+  basically puts things back to the way they were prior to the 'eval'. The
+  'AWS_*' variables (if any) that had been set in the environment previously
+  are restored to the state they were found it.
+
+  The 'aws-as' command is the main tool used to switch between the credentials
+  associated with different aws-cli profiles. Basic use looks like this:
+
+  List the aws-cli profiles:
+
+      $ aws-as -L
+      some-prof-name
+      some-other-prof-name
+      yet-another-prof-name
+
+  Switch to a given profile:
+
+      $ aws-as some-prof-name
+      (some-prof-name) $
+
+  Note that the $PS1 setting has been augmented with the name of the profile
+  whose creds are currently in effect. The earlier prompt prefix "(-)"
+  indicated that aws-as was active in the environment, but no profile had been
+  selected to be active. If you change to a different profile, that other
+  profile will be indicated:
+
+      $ aws-as some-other-prof-name
+      (some-other-prof-name) $
+
+  To go back to /not/ having any profile be active, use the '-C' (--clear-creds)
+  option:
+
+      (some-other-prof-name) $ aws-as -C
+      (-) $
+
+  To have aws-as remove itself entirely from your shell environment, invoke
+  the 'aws-as-deactivate' command:
+
+      (-) $ aws-as-deactivate
+      $
+
+  Note that the 'aws-as' command is intended to "feel like" a normal command
+  line program. Among other things, it provides a meaningful return code (zero
+  for success, non-zero for error) as an "exit status", and you can ask for
+  its version:
+
+      $ aws-as --version
+      aws-as 0.1.0  (built: 2020-09-12 04:21:48)
+
+      Copyright (C) 2020 Alan D. Salewski <salewski@att.net>
+      License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.
+      This is free software: you are free to change and redistribute it.
+      There is NO WARRANTY, to the extent permitted by law.
+
+      Written by Alan D. Salewski.
+
+  and it's help output:
+
+      $ aws-as --help
+      usage: aws-as [-v...] { -h | --help }
+        or:  aws-as [-v...] { -V | --version }
+        or:  aws-as [-v...] { -C | --clear-creds }
+        or:  aws-as [-v...] { -E | --export }
+        or:  aws-as [-v...] { -L | --list-profiles }
+        or:  aws-as [-v...] { -U | --unexport }
+        or:  aws-as [OPTION...] [--] AWS_CLI_PROFILE
+
+      Switch to using creds from the specified aws-cli profile,
+      authenticating with MFA, if necessary.
+
+      CAREFUL: Bundling of short-form options is not (yet?) supported.
+
+        -h, --help           Print this help message on stdout
+        -V, --version        Print the version of the program on stdout
+
+        -C, --clear-creds    Unset AWS_* credential variables in the environment
+
+        -E, --export         Mark the AWS_* credential variables for export
+        -U, --unexport       Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
+
+        -L, --list-profiles  Print list of aws-cli profiles on stdout
+
+        -v, --verbose        Print program progress messages on stderr. Specify multiple
+                               times to increase verbosity: info, debug, and tracing (set -x)
+
+            --               Signals the end of options and disables further options processing.
+                               Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
+
+      Report bugs to Alan D. Salewski <salewski@att.net>.
+
+  Note that the notion of "in-effect aws-cli profile" is handled
+  indirectly. The profile name is used to obtain temporary AWS credentials,
+  but the profile name is not reflected in the environment. That is, 'aws-as'
+  does not set the 'AWS_PROFILE' environment variable that some programs are
+  aware of. Instead, it sets the trio of variables 'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY', and 'AWS_SESSION_TOKEN'. Aside from using the
+  profile name to augment the $PS1 value, it does not actually maintain the
+  internal notion of the "current" profile; the current profile is simply the
+  one that corresponds to the credentials in the AWS_* variables.
+
+  By default, the 'AWS_*' variables are set in the current shell environment,
+  but they are not exported. To export them, use the '-E' (--export) option:
+
+      (some-prof-name) $ aws-as -E
+
+  to remove the export attribute from the 'AWS_*' variables, use the '-U' (--unexport)
+  option:
+
+      (some-prof-name) $ aws-as -U
+
+  To have the commands report what they are doing, use the '-v' (--verbose)
+  option. You can specify '-v' more than once; each additional '-v' (up to
+  three) increases the output verbosity. Three '-v' options cause tracing
+  (set -x) to be enable within the context of the 'aws-as' operation.
