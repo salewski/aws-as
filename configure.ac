@@ -78,6 +78,18 @@ if test -z "$AWS_PROG"; then
     AC_MSG_ERROR([aws not found])
 fi
 
+## The 'aws-vault' program as supplied by 99designs. Used by `aws-as` for
+## caching temporary AWS credentials, and related.
+##
+##     https://github.com/99designs/aws-vault
+##     https://github.com/99designs/aws-vault/blob/master/USAGE.md
+##     https://99designs.com/blog/engineering/aws-vault/
+##
+AC_PATH_PROG(AWS_VAULT_PROG, aws-vault)
+if test -z "$AWS_VAULT_PROG"; then
+    AC_MSG_ERROR([aws-vault not found])
+fi
+
 ## We need bash >= 4.x (associative arrays were added in bash-4.0)
 ##
 AC_PATH_PROG(BASH_SH, bash)
@@ -293,6 +305,7 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]POD2MAN[@],$(POD2MAN),g'"'"' \
   \
   -e '"'"'s,[@]AWS_PROG[@],$(AWS_PROG),g'"'"' \
+  -e '"'"'s,[@]AWS_VAULT_PROG[@],$(AWS_VAULT_PROG),g'"'"' \
   -e '"'"'s,[@]BASH_SH[@],$(BASH_SH),g'"'"' \
   -e '"'"'s,[@]CAT[@],$(CAT),g'"'"' \
   -e '"'"'s,[@]CHMOD_PROG[@],$(CHMOD_PROG),g'"'"' \
@@ -424,6 +437,7 @@ printf "           Configuration files: %s\n" "`__poor_mans_expand_file_name sys
 printf "                  Manual pages: %s\n" "`__poor_mans_expand_file_name mandir`"
 printf "\n"
 printf "                           aws: %s\n" "`__poor_mans_expand_file_name AWS_PROG`"
+printf "                     aws-vault: %s\n" "`__poor_mans_expand_file_name AWS_VAULT_PROG`"
 printf "                          bash: %s\n" "`__poor_mans_expand_file_name BASH_SH`"
 printf "                         chmod: %s\n" "`__poor_mans_expand_file_name CHMOD_PROG`"
 printf "                          date: %s\n" "`__poor_mans_expand_file_name DATE_PROG`"

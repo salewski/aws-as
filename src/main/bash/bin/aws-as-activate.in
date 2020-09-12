@@ -62,6 +62,7 @@ MKDIR_PROG="${MKDIR:-@MKDIR_PROG@}"
 XARGS_PROG="${XARGS:-@XARGS_PROG@}"
 
 AWS_PROG="${AWS:-@AWS_PROG@}"
+AWS_VAULT_PROG="${AWS_VAULT:-@AWS_VAULT_PROG@}"
 JQ_PROG="${JQ:-@JQ_PROG@}"
 PYTHON3_PROG="${PYTHON:-@PYTHON@}"
 
@@ -532,6 +533,7 @@ EOF
 
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_VAULT_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CHMOD_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_DATE_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_MKDIR_PROG')
@@ -542,6 +544,7 @@ EOF
     "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
 __T_V_AWS_AS_AWS_PROG='${AWS_PROG}'
+__T_V_AWS_AS_AWS_PROG='${AWS_VAULT_PROG}'
 __T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
 __T_V_AWS_AS_DATE_PROG='${DATE_PROG}'
 __T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
