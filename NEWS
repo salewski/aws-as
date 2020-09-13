@@ -245,6 +245,23 @@ which they were fixed will be noted here, as well.
 
        The hoisted variables are not, by default, exported.
 
+       See also: aws_as_cfg_auto_export
+
+     + aws_as_cfg_auto_export (true|false)
+
+       When AWS_* credential variables (AWS_ACCESS_KEY_ID,
+       AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN) are hoisted into the
+       current shell, by default they are set but not exported. User can have
+       them exported by manually invoking 'aws-as -E' (or equivalently,
+       'aws-as --export'), but if you need to do that repeatedly the manual
+       invocation will get tedious fast.
+
+       If this setting is set to 'true', then the AWS_* cred. vars will be
+       automatically exported upon being hoisted into the current shell
+       environment.
+
+       See also: aws_as_cfg_auto_hoist
+
 
 * aws-as 0.1.0 (2020-09-12)
 

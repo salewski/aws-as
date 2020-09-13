@@ -630,7 +630,8 @@ EOF
     # restore them upon deactivation, if needed.
     #
     for vname in \
-        'aws_as_cfg_debug_init' \
+        'aws_as_cfg_debug_init'  \
+        'aws_as_cfg_auto_export' \
         'aws_as_cfg_auto_hoist' ; do
 
         "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
@@ -702,6 +703,9 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFG_DEBUG_INIT')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_DEBUG_INIT')
     t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFG_AUTO_EXPORT')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_AUTO_EXPORT')
+    t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFG_AUTO_HOIST')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_AUTO_HOIST')
     t_cleanup_statements+=(':')
@@ -733,6 +737,7 @@ __T_V_AWS_AS_DEBUGGING=false
 __T_V_AWS_AS_TRACING=false
 
 __T_V_AWS_AS_CFG_DEBUG_INIT=false
+__T_V_AWS_AS_CFG_AUTO_EXPORT=false
 __T_V_AWS_AS_CFG_AUTO_HOIST=false
 
 __t_f_aws_as_reset_dashv_flags () {
@@ -1042,6 +1047,14 @@ function __t_f_aws_as_maybe_hoist_cred_vars () {
         return 1
     fi
 
+    if ${__T_V_AWS_AS_CFG_AUTO_EXPORT}; then
+        if ${__T_V_AWS_AS_BE_VERBOSE}; then
+            printf "${__T_V_AWS_AS_PROG} (info): auto-export is enabled; will export AWS_* cred. vars\n" 1>&2
+        fi
+        local t_do_hoist=false  # vars already hoisted, so avoid recursive invocation cycle
+        __t_f_aws_as_export_cred_vars "${t_do_hoist}" || return 1
+    fi
+
     return 0
 }
 EOF
@@ -1054,11 +1067,30 @@ EOF
     # be set (e.g., if the user set them manually), but by design we will only
     # export them if we are dealing with a complete set.
     #
+    # @param DO_HOIST - (optional) Used when invoked internally (due to an
+    #                   "auto-export" trigger upon hoisting) to break a cyclic
+    #                   dependency. A user manually invoking '--export'
+    #                   triggers hoisting, but hoisting when the auto-export
+    #                   configuration knob is enabled then trigger export.
+    #
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_export_cred_vars () {
 
-    __t_f_aws_as_maybe_hoist_cred_vars || return $?
+    local t_do_hoist
+    t_do_hoist=true
+    if test $# -gt 0; then
+        t_do_hoist=$1
+    fi
+    if [[ "${t_do_hoist}" =~ ^(true|false)$ ]]; then :; else
+        printf "${__T_V_AWS_AS_PROG} (BUG): unrecognized value for DO_HOIST param; must be either 'true' or 'false', but got: '%s'\n" \
+            "${t_do_hoist}" 1>&2
+        return 1
+    fi
+
+    if ${t_do_hoist}; then
+        __t_f_aws_as_maybe_hoist_cred_vars || return $?
+    fi
 
     local t_cnt=0
 
@@ -1562,13 +1594,31 @@ if test -e "${__T_V_AWS_AS_CONFIG_FILE_PATH}"; then :; else
 #
 aws_as_cfg_debug_init=false
 
+
 # When switching to a given aws-cli profile, AWS_* credential variables
 # (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN) are
 # not set in the current shell by default. If this setting is set to
 # 'true', then the AWS_* cred. vars will be set (but but not exported)
 # in the current environment.
 #
+# See also: aws_as_cfg_auto_export
+#
 aws_as_cfg_auto_hoist=false
+
+
+# When AWS_* credential variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+# and AWS_SESSION_TOKEN) are hoisted into the current shell, by default they
+# are set but not exported. User can have them exported by manually invoking
+# 'aws-as -E' (or equivalently, 'aws-as --export'), but if you need to do that
+# repeatedly the manual invocation will get tedious fast.
+#
+# If this setting is set to 'true', then the AWS_* cred. vars will be
+# automatically exported upon being hoisted into the current shell
+# environment.
+#
+# See also: aws_as_cfg_auto_hoist
+#
+aws_as_cfg_auto_export=false
 
 EOINIT
         fi
@@ -1611,6 +1661,7 @@ EOF
 
 __T_V_AWS_AS_CFGINIT_DEBUG_INIT=
 __T_V_AWS_AS_CFGINIT_AUTO_HOIST=
+__T_V_AWS_AS_CFGINIT_AUTO_EXPORT=
 
 # We treat the aws_as_cfg_debug_init setting specially, since enabling
 # it earlier allows us to emit debugging messages about the rest.
@@ -1644,6 +1695,10 @@ fi
 if test "${aws_as_cfg_auto_hoist:+is_set}" = 'is_set'; then
     __T_V_AWS_AS_CFGINIT_AUTO_HOIST=${aws_as_cfg_auto_hoist}
 fi
+
+if test "${aws_as_cfg_auto_export:+is_set}" = 'is_set'; then
+    __T_V_AWS_AS_CFGINIT_AUTO_EXPORT=${aws_as_cfg_auto_export}
+fi
 EOF
 
     "${CAT_PROG}" - <<'EOF'
@@ -1674,7 +1729,7 @@ if test "${aws_as_cfg_debug_init:+is_set}" = 'is_set'; then
     else
         if [[ "${aws_as_cfg_debug_init}" =~ ^(true|false)$ ]]; then
 
-            if ${cfg_as_cfg_debug_init}; then
+            if ${aws_as_cfg_debug_init}; then
                 __T_V_AWS_AS_CFG_DEBUG_INIT=true
             fi
 
@@ -1707,6 +1762,27 @@ if test "${aws_as_cfg_auto_hoist:+is_set}" = 'is_set'; then
     else
         printf "${__T_V_AWS_AS_PROG} (warn): ignoring bogus value found for config key aws_as_cfg_auto_hoist; should be 'true' or 'false'; got: \"%s\"\n" \
                 "${aws_as_cfg_auto_hoist}" 1>&2
+        # keep going...
+    fi
+fi
+
+if test "${aws_as_cfg_auto_export:+is_set}" = 'is_set'; then
+
+    if test "${__T_V_AWS_AS_CFGINIT_AUTO_EXPORT:+is_set}"; then
+        # (maybe) restore env override of config file value
+        aws_as_cfg_auto_export=${__T_V_AWS_AS_CFGINIT_AUTO_EXPORT}
+    fi
+
+    if [[ "${aws_as_cfg_auto_export}" =~ ^(true|false)$ ]]; then
+
+        if ${__T_V_AWS_AS_CFG_DEBUG_INIT}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_auto_export: %s\n" \
+                "${aws_as_cfg_auto_export}" 1>&2
+        fi
+        __T_V_AWS_AS_CFG_AUTO_EXPORT=${aws_as_cfg_auto_export}
+    else
+        printf "${__T_V_AWS_AS_PROG} (warn): ignoring bogus value found for config key aws_as_cfg_auto_export; should be 'true' or 'false'; got: \"%s\"\n" \
+                "${aws_as_cfg_auto_export}" 1>&2
         # keep going...
     fi
 fi
