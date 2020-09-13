@@ -174,6 +174,41 @@ which they were fixed will be noted here, as well.
      the profile again may require re-authentication -- it no longer has an
      active "session" with cached creds in the aws-vault cache).
 
+**** aws-as: '-H' (--hoist) "hoists up" AWS_* cred. vars. from aws-vault invoked subprocess
+
+     https://github.com/salewski/aws-as/issues/26
+
+     The "new normal" default behavior of 'aws-as' is to maintain a notion of
+     the in-effect aws-cli profile without having any 'AWS_*' credential
+     variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
+     AWS_SESSION_TOKEN) in the current shell process.
+
+     However, for ad hoc scripting and other purposes, it is sometimes
+     convenient to be able to operate in the context of the current shell in
+     order to have access to state in the current shell that is not exported
+     -- so would not be available to a subprocess.
+
+     The new '-H' (--hoist) option is used to populate the AWS_* credential
+     variables in the current environment, as obtained from a subprocess
+     invoked by 'aws-vault'. The 'aws-vault' command injects the correct
+     values based on the currently in-effect profile, and the subprocess uses
+     them in a generated script emitted on stdout to be consumed by the
+     'aws-as' grandparent process. The process tree looks like this:
+
+     :    aws-as
+     :    └── aws-vault
+     :        └── bash -c '# script that captures values of AWS_* vars'
+
+**** aws-as: '-E' (--export) and '-U' (--unexport) now imply '-H' (--hoist)
+
+     https://github.com/salewski/aws-as/issues/26
+
+     Since the 'AWS_*' credential variables are no longer present by default
+     in the current shell, the '-E' and '-U' options causes them to first be
+     obtained from a grandchild process (invoked by an 'aws-vault' suprocess
+     of the current shell) prior to applying the respective export or unexport
+     operation on them.
+
 
 * aws-as 0.1.0 (2020-09-12)
 
