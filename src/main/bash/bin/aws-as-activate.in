@@ -61,7 +61,7 @@ CAT_PROG="${CAT:-@CAT@}"
 SED_PROG="${SED:-@SED@}"
 
 BASH_PROG="${BASH:-@BASH_SH@}"
-#DATE_PROG="${DATE:-@DATE_PROG@}"
+DATE_PROG="${DATE:-@DATE_PROG@}"
 TRUE_PROG="${TRUE:-@TRUE_PROG@}"
 
 CHMOD_PROG="${CHMOD:-@CHMOD_PROG@}"
@@ -537,26 +537,28 @@ EOF
     t_cleanup_statements+=('${__t_v_aws_as_have_PS1_hold} && PS1=${__t_v_aws_as_PS1_hold}')
 
     t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CAT_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_SED_PROG')
 #    t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_VAULT_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CHMOD_PROG')
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_BASH_PROG')
-#    t_cleanup_statements+=('unset -v __T_V_AWS_AS_DATE_PROG')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_DATE_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_TRUE_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_MKDIR_PROG')
 #    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PYTHON3_PROG')
 
     "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
+__T_V_AWS_AS_CAT_PROG='${CAT_PROG}'
 __T_V_AWS_AS_SED_PROG='${SED_PROG}'
 #__T_V_AWS_AS_AWS_PROG='${AWS_PROG}'
 __T_V_AWS_AS_AWS_VAULT_PROG='${AWS_VAULT_PROG}'
 __T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
 
 __T_V_AWS_AS_BASH_PROG='${BASH_PROG}'
-#__T_V_AWS_AS_DATE_PROG='${DATE_PROG}'
+__T_V_AWS_AS_DATE_PROG='${DATE_PROG}'
 __T_V_AWS_AS_TRUE_PROG='${TRUE_PROG}'
 __T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
 #__T_V_AWS_AS_PYTHON3_PROG='${PYTHON3_PROG}'
@@ -626,6 +628,9 @@ EOF
     #        it.
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_DOT_D_DIR')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CONFIG_FILE_NAME')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CONFIG_FILE_PATH')
 
     "${CAT_PROG}" - <<'EOF'
 
@@ -644,6 +649,12 @@ if test -d "${__T_V_AWS_AS_DOT_D_DIR}"; then :; else
 #        return 1
 #    fi
 fi
+
+# Default config file location: ~/.aws-as.d/init.sh
+#
+__T_V_AWS_AS_CONFIG_FILE_NAME='init.sh'
+__T_V_AWS_AS_CONFIG_FILE_PATH="${__T_V_AWS_AS_DOT_D_DIR}/${__T_V_AWS_AS_CONFIG_FILE_NAME}"
+
 EOF
 
     t_cleanup_statements+=(':')
@@ -1362,7 +1373,7 @@ function __t_f_aws_as_main () {
 
     __t_f_aws_as_try_set_profile_as "${t_profile_name}"
     if test $? -ne 0; then
-#        printf "${__T_V_AWS_AS_PROG} (error): error encountered why trying to switch to profile: \"%s\"; bailing out\n" "${t_profile_name}" 1>&2
+#        printf "${__T_V_AWS_AS_PROG} (error): error encountered while trying to switch to profile: \"%s\"; bailing out\n" "${t_profile_name}" 1>&2
         return 1
     fi
 
@@ -1397,6 +1408,7 @@ function aws-as () {
     return $t_rstat
 }
 EOF
+
 
     "${CAT_PROG}" - <<'EOF'
 
@@ -1436,6 +1448,60 @@ EOF
 function aws-as-deactivate () {
     __t_f_aws_as_cleanup
 }
+EOF
+
+
+    # Last initialization activity: "source" the user's ~/.aws-as.d/init.sh
+    # file, creating the file first, if necessary.
+    #
+    "${CAT_PROG}" - <<'EOF'
+
+if test -e "${__T_V_AWS_AS_CONFIG_FILE_PATH}"; then :; else
+
+    > "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was unable to create aws-as config file: %s\n" \
+            "${__T_V_AWS_AS_CONFIG_FILE_PATH}" 1>&2
+    else
+        "${__T_V_AWS_AS_CHMOD_PROG}" '0600' "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to 'chmod 0600' aws-as config file: %s\n" \
+                "${__T_V_AWS_AS_CONFIG_FILE_PATH}" 1>&2
+        else
+
+            "${__T_V_AWS_AS_CAT_PROG}" - <<EOINIT >> "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
+# -*- conf-unix -*-
+#
+# This is the customization file for aws-as(1), created when the program was
+# initialized on $(${__T_V_AWS_AS_DATE_PROG} -u -Iseconds)
+#
+# This file is a Bourne-style shell script snippet, and is "sourced" by the
+# aws-as(1) program at initialization time. For valid aws-as config file
+# variables that may appear here, see aws-as(1) or the project's online
+# documentation:
+#     https://salewski.github.io/aws-as/
+#     https://github.com/salewski/aws-as
+
+EOINIT
+        fi
+    fi
+fi
+
+EOF
+
+    "${CAT_PROG}" - <<'EOF'
+
+# If we are falling through here, we should have a config file to "source"
+# (even if it is just an empty string).
+#
+if test -e "${__T_V_AWS_AS_CONFIG_FILE_PATH}"; then
+    source "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): error encountered while trying to parse aws-as config file: %s\n" \
+            "${__T_V_AWS_AS_CONFIG_FILE_PATH}" 1>&2
+    fi
+fi
+
 EOF
 
 fi

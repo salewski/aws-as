@@ -174,6 +174,7 @@ which they were fixed will be noted here, as well.
      the profile again may require re-authentication -- it no longer has an
      active "session" with cached creds in the aws-vault cache).
 
+
 **** aws-as: '-H' (--hoist) "hoists up" AWS_* cred. vars. from aws-vault invoked subprocess
 
      https://github.com/salewski/aws-as/issues/26
@@ -199,6 +200,7 @@ which they were fixed will be noted here, as well.
      :    └── aws-vault
      :        └── bash -c '# script that captures values of AWS_* vars'
 
+
 **** aws-as: '-E' (--export) and '-U' (--unexport) now imply '-H' (--hoist)
 
      https://github.com/salewski/aws-as/issues/26
@@ -208,6 +210,22 @@ which they were fixed will be noted here, as well.
      obtained from a grandchild process (invoked by an 'aws-vault' suprocess
      of the current shell) prior to applying the respective export or unexport
      operation on them.
+
+
+*** aws-as now has a configuration file: ~/.aws-as.d/init.sh
+
+    https://github.com/salewski/aws-as/issues/1
+
+    If the file does not exist, it is reated the first time the aws-as program
+    is initialized.
+
+    The file is a Bourne-style shell script snippet, and is "sourced" by the
+    aws-as(1) program at initialization time. For valid aws-as config file
+    variables that may appear in it, see aws-as(1) or the project's online
+    documentation:
+
+        https://salewski.github.io/aws-as/
+        https://github.com/salewski/aws-as
 
 
 * aws-as 0.1.0 (2020-09-12)
