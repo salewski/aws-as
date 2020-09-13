@@ -592,6 +592,8 @@ __t_f_aws_as_maybe_update_PS1
 #        invokes 'aws-as-deactivate'.
 EOF
 
+    # These will get hold values, and will then be unset in the current shell
+    # during initialization.
     for vname in \
         'AWS_PROFILE' \
         'AWS_ACCESS_KEY_ID' \
@@ -615,6 +617,37 @@ EOF
         # deactivation we want to return the shell envinment to the state it
         # was in upon activation. That means unsetting the AWS_* vars if they
         # were not already set at the time of activation.
+
+        t_cleanup_statements+=(':')
+        t_cleanup_statements+=('unset -v __t_v_aws_as_'"${vname}"'_hold')
+        t_cleanup_statements+=('unset -v __t_v_aws_as_have_'"${vname}"'_hold')
+        t_cleanup_statements+=('${__t_v_aws_as_have_'"${vname}"'_hold} && '"${vname}"'=${__t_v_aws_as_'"${vname}"'_hold} || unset '"${vname}")
+    done
+
+    # Similar to the above, but these WILL NOT be unset in the current
+    # shell. We want these to remain active "as found". We may overwrite their
+    # values over time, but we remember their original values so we can
+    # restore them upon deactivation, if needed.
+    #
+    for vname in \
+        'aws_as_cfg_debug_init' \
+        'aws_as_cfg_auto_hoist' ; do
+
+        "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
+
+__t_v_aws_as_${vname}_hold=
+__t_v_aws_as_have_${vname}_hold=false
+if test "\${${vname}:+is_set}" = 'is_set'; then
+    __t_v_aws_as_${vname}_hold=\$${vname}
+    __t_v_aws_as_have_${vname}_hold=true
+fi
+EOF
+        # To the extent possible, upon deactivation we want to return the
+        # shell envinment to the state it was in upon activation. That means
+        # unsetting the aws_as_cfg_* vars if they were not already set at the
+        # time of activation, and restoring their original values if they were
+        # set at the time of activation (i.e., they happened to be set on the
+        # command line or were already present in the environment).
 
         t_cleanup_statements+=(':')
         t_cleanup_statements+=('unset -v __t_v_aws_as_'"${vname}"'_hold')
@@ -666,6 +699,9 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_DEBUGGING')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_TRACING')
     t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFG_AUTO_HOIST')
+    t_cleanup_statements+=('unset -v aws_as_cfg_auto_hoist')
+    t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -f __t_f_aws_as_main')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
@@ -692,6 +728,8 @@ __T_V_AWS_AS_PROG='aws-as'
 __T_V_AWS_AS_BE_VERBOSE=false
 __T_V_AWS_AS_DEBUGGING=false
 __T_V_AWS_AS_TRACING=false
+
+__T_V_AWS_AS_CFG_AUTO_HOIST=false
 
 __t_f_aws_as_reset_dashv_flags () {
     __T_V_AWS_AS_BE_VERBOSE=false
@@ -1225,6 +1263,14 @@ function __t_f_aws_as_try_set_profile_as () {
     __T_V_AWS_AS_PROFILE=${t_profile_name}
     __t_f_aws_as_maybe_update_PS1
 
+
+    if ${__T_V_AWS_AS_CFG_AUTO_HOIST}; then
+        if ${__T_V_AWS_AS_BE_VERBOSE}; then
+            printf "${__T_V_AWS_AS_PROG} (info): auto-hoisting is enabled; will hoist AWS_* cred. vars for profile\n" 1>&2
+        fi
+        __t_f_aws_as_maybe_hoist_cred_vars || return 1
+    fi
+
     return 0
 }
 EOF
@@ -1409,6 +1455,14 @@ function aws-as () {
 }
 EOF
 
+    # CAREFUL: These need to be defined here (before the definition of
+    #          __t_f_aws_as_cleanup is generated).
+    #
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_DOING_INIT_DEBUG')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_DEBUG_INIT')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_AUTO_HOIST')
 
     "${CAT_PROG}" - <<'EOF'
 
@@ -1472,15 +1526,53 @@ if test -e "${__T_V_AWS_AS_CONFIG_FILE_PATH}"; then :; else
             "${__T_V_AWS_AS_CAT_PROG}" - <<EOINIT >> "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
 # -*- conf-unix -*-
 #
-# This is the customization file for aws-as(1), created when the program was
-# initialized on $(${__T_V_AWS_AS_DATE_PROG} -u -Iseconds)
+# This is the customization file for aws-as(1), created automatically
+# when the program was initialized on $(${__T_V_AWS_AS_DATE_PROG} -u -Iseconds)
 #
 # This file is a Bourne-style shell script snippet, and is "sourced" by the
-# aws-as(1) program at initialization time. For valid aws-as config file
-# variables that may appear here, see aws-as(1) or the project's online
-# documentation:
+# aws-as(1) program at initialization time. The default content lists all of
+# the configuration variables available for the version of aws-as that
+# produced the file, but newer versions may support additional config knobs
+# not represented here.
+#
+# For the full list of valid aws-as config file variables that may appear
+# here, see aws-as(1) or the project's online documentation:
+#
 #     https://salewski.github.io/aws-as/
 #     https://github.com/salewski/aws-as
+#
+# HINT: The variables in this file can also be specified on the
+#       aws-as-activate(1) command line that generates the aws-as(1) script
+#       definition that is eval'd. Rather than:
+#
+#           \$ eval "\$(aws-as-activate -s)"
+#
+#       you can do something like this:
+#
+#           \$ eval "\$(printf '%s;\n' 'aws_as_cfg_debug_init=true' && aws-as-activate -s)"
+#
+#       or even this:
+#
+#           \$ eval "\$(printf '%s;\n' 'set -x' 'aws_as_cfg_debug_init=true' 'set +x' && aws-as-activate -s)"
+#
+# CAVEAT: Any variables set as described above will look to 'aws-as' to be
+#         pre-existing in the environment, so will be restored to the
+#         original setting as specified on the command line at deactivation
+#         time; they will still be present in the environment after you
+#         invoke aws-as-deactivate.
+
+# Set to 'true' to cause aws-as initialization to emit debugging messages
+# related to parsing this config file.
+#
+aws_as_cfg_debug_init=false
+
+# When switching to a given aws-cli profile, AWS_* credential variables
+# (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN) are
+# not set in the current shell by default. If this setting is set to
+# 'true', then the AWS_* cred. vars will be set (but but not exported)
+# in the current environment.
+#
+aws_as_cfg_auto_hoist=false
 
 EOINIT
         fi
@@ -1489,16 +1581,144 @@ fi
 
 EOF
 
+    # If the initialization falls through here, we should have a config file
+    # to "source" (even if it is just an empty string).
+
+    # Before sourcing the file, we first make note of any config file
+    # variables that may have been set on the aws-as-activate command line (or
+    # were already present in the environment). Those will take precedence
+    # over the values sorced from the config file.
+    #
+    # This approach allows for the override mechanism noted in the hint
+    # comment in our template config file above.
+
+    # A config file variable is implemented by three related variables in the
+    # script:
+    #
+    #     1. aws_as_cfg_FOO -- the name as it appears in the config file (and
+    #                          possibly in the environment at initialization
+    #                          time)
+    #
+    #     2. __T_V_AWS_CFGINIT_foo -- A "hold" variable to "remember" the
+    #                          early initialization-time value, in case it
+    #                          gets overwritten by the "sourced" config
+    #                          file. The early initialization-time value will
+    #                          take precedence.
+    #
+    #     3. __T_V_AWS_CFG_foo -- a boolean value set to indicate whether or
+    #                          not the optional configurable behavior has been
+    #                          enabled. This is the variable checked by the
+    #                          main logic of the program to decide whether or
+    #                          not to alter its behavior.
+
     "${CAT_PROG}" - <<'EOF'
 
-# If we are falling through here, we should have a config file to "source"
-# (even if it is just an empty string).
-#
+__T_V_AWS_AS_DOING_INIT_DEBUG=false
+
+__T_V_AWS_AS_CFGINIT_DEBUG_INIT=
+__T_V_AWS_AS_CFGINIT_AUTO_HOIST=
+
+# We treat the aws_as_cfg_debug_init setting specially, since enabling
+# it earlier allows us to emit debugging messages about the rest.
+
+if test "${aws_as_cfg_debug_init:+is_set}" = 'is_set'; then
+    if [[ "${aws_as_cfg_debug_init}" =~ ^(true|false)$ ]]; then
+
+        __T_V_AWS_AS_CFGINIT_DEBUG_INIT=${aws_as_cfg_debug_init}
+
+        if ${__T_V_AWS_AS_CFGINIT_DEBUG_INIT}; then
+
+            # Once set, this never flips back. The aws_as_cfg_debug_init value
+            # (if any) sourced from the config file below will be effectively
+            # ignored.
+            #
+            __T_V_AWS_AS_DOING_INIT_DEBUG=true
+        fi
+
+        if ${__T_V_AWS_AS_DOING_INIT_DEBUG}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_debug_init: %s\n" \
+                "${aws_as_cfg_debug_init}" 1>&2
+        fi
+    else
+        printf "${__T_V_AWS_AS_PROG} (warn): ignoring bogus value found for config key aws_as_cfg_debug_init; should be 'true' or 'false'; got: \"%s\"\n" \
+                "${aws_as_cfg_debug_init}" 1>&2
+        # keep going...
+    fi
+fi
+
+
+if test "${aws_as_cfg_auto_hoist:+is_set}" = 'is_set'; then
+    __T_V_AWS_AS_CFGINIT_AUTO_HOIST=${aws_as_cfg_auto_hoist}
+fi
+EOF
+
+    "${CAT_PROG}" - <<'EOF'
+
 if test -e "${__T_V_AWS_AS_CONFIG_FILE_PATH}"; then
+
+    # This may overwrite 'aws_as_cfg_*' vars seen in the env, even though
+    # the config file has lower precedence than the env vars. That's okay,
+    # though, because we captured the "initial" values above, and will restore
+    # them below to re-establish proper precedence before attempting to use
+    # them "for real".
+    #
     source "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
     if test $? -ne 0; then
         printf "${__T_V_AWS_AS_PROG} (error): error encountered while trying to parse aws-as config file: %s\n" \
             "${__T_V_AWS_AS_CONFIG_FILE_PATH}" 1>&2
+    fi
+fi
+
+# These 'aws_as_cfg_*' variables were probably "sourced" from the config file,
+# but we'll use them whether they were or weren't because this allows the user
+# to specify them on the command line to aws-as-activate(1), or similar, too.
+
+if test "${aws_as_cfg_debug_init:+is_set}" = 'is_set'; then
+
+    if test "${__T_V_AWS_AS_CFGINIT_DEBUG_INIT:+is_set}" = 'is_set'; then
+        : nothing to do -- early cfginit debug handled above
+    else
+        if [[ "${aws_as_cfg_debug_init}" =~ ^(true|false)$ ]]; then
+
+            if ${cfg_as_cfg_debug_init}; then
+
+                # Once set, this never flips back. The aws_as_cfg_debug_init value
+                # (if any) sourced from the config file below will be effectively
+                # ignored.
+                #
+                __T_V_AWS_AS_DOING_INIT_DEBUG=true
+            fi
+
+            if ${__T_V_AWS_AS_DOING_INIT_DEBUG}; then
+                printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_auto_hoist: %s\n" \
+                    "${aws_as_cfg_debug_init}" 1>&2
+            fi
+        else
+            printf "${__T_V_AWS_AS_PROG} (warn): ignoring bogus value found for config key aws_as_cfg_debug_init; should be 'true' or 'false'; got: \"%s\"\n" \
+                    "${aws_as_cfg_debug_init}" 1>&2
+            # keep going...
+        fi
+    fi
+fi
+
+if test "${aws_as_cfg_auto_hoist:+is_set}" = 'is_set'; then
+
+    if test "${__T_V_AWS_AS_CFGINIT_AUTO_HOIST:+is_set}"; then
+        # (maybe) restore env override of config file value
+        aws_as_cfg_auto_hoist=${__T_V_AWS_AS_CFGINIT_AUTO_HOIST}
+    fi
+
+    if [[ "${aws_as_cfg_auto_hoist}" =~ ^(true|false)$ ]]; then
+
+        if ${__T_V_AWS_AS_DOING_INIT_DEBUG}; then
+            printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_auto_hoist: %s\n" \
+                "${aws_as_cfg_auto_hoist}" 1>&2
+        fi
+        __T_V_AWS_AS_CFG_AUTO_HOIST=${aws_as_cfg_auto_hoist}
+    else
+        printf "${__T_V_AWS_AS_PROG} (warn): ignoring bogus value found for config key aws_as_cfg_auto_hoist; should be 'true' or 'false'; got: \"%s\"\n" \
+                "${aws_as_cfg_auto_hoist}" 1>&2
+        # keep going...
     fi
 fi
 

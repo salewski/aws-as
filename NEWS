@@ -216,8 +216,10 @@ which they were fixed will be noted here, as well.
 
     https://github.com/salewski/aws-as/issues/1
 
-    If the file does not exist, it is reated the first time the aws-as program
-    is initialized.
+    If the file does not exist, it is created the first time the aws-as
+    program is initialized. The auto-created version is heavily commented, and
+    contains documentation for the full universe of supported config file
+    variables.
 
     The file is a Bourne-style shell script snippet, and is "sourced" by the
     aws-as(1) program at initialization time. For valid aws-as config file
@@ -226,6 +228,22 @@ which they were fixed will be noted here, as well.
 
         https://salewski.github.io/aws-as/
         https://github.com/salewski/aws-as
+
+
+**** valid config file settings
+
+     + aws_as_cfg_debug_init (true|false)
+
+       If enabled, will emit debugging messages related to the loading to the
+       config file variables.
+
+     + aws_as_cfg_auto_hoist (true|false)
+
+       If enabled, will cause aws-as to automatically "hoist" the AWS_*
+       credential variables into the current environment when switching to any
+       aws-cli profile.
+
+       The hoisted variables are not, by default, exported.
 
 
 * aws-as 0.1.0 (2020-09-12)
