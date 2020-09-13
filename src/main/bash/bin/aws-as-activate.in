@@ -699,8 +699,11 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_DEBUGGING')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_TRACING')
     t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFG_DEBUG_INIT')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_DEBUG_INIT')
+    t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFG_AUTO_HOIST')
-    t_cleanup_statements+=('unset -v aws_as_cfg_auto_hoist')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_AUTO_HOIST')
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -f __t_f_aws_as_main')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
@@ -729,6 +732,7 @@ __T_V_AWS_AS_BE_VERBOSE=false
 __T_V_AWS_AS_DEBUGGING=false
 __T_V_AWS_AS_TRACING=false
 
+__T_V_AWS_AS_CFG_DEBUG_INIT=false
 __T_V_AWS_AS_CFG_AUTO_HOIST=false
 
 __t_f_aws_as_reset_dashv_flags () {
@@ -1455,14 +1459,6 @@ function aws-as () {
 }
 EOF
 
-    # CAREFUL: These need to be defined here (before the definition of
-    #          __t_f_aws_as_cleanup is generated).
-    #
-    t_cleanup_statements+=(':')
-    t_cleanup_statements+=('unset -v __T_V_AWS_AS_DOING_INIT_DEBUG')
-    t_cleanup_statements+=(':')
-    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_DEBUG_INIT')
-    t_cleanup_statements+=('unset -v __T_V_AWS_AS_CFGINIT_AUTO_HOIST')
 
     "${CAT_PROG}" - <<'EOF'
 
@@ -1592,8 +1588,8 @@ EOF
     # This approach allows for the override mechanism noted in the hint
     # comment in our template config file above.
 
-    # A config file variable is implemented by three related variables in the
-    # script:
+    # A config file variable is typically implemented by three related
+    # variables in the script:
     #
     #     1. aws_as_cfg_FOO -- the name as it appears in the config file (and
     #                          possibly in the environment at initialization
@@ -1613,8 +1609,6 @@ EOF
 
     "${CAT_PROG}" - <<'EOF'
 
-__T_V_AWS_AS_DOING_INIT_DEBUG=false
-
 __T_V_AWS_AS_CFGINIT_DEBUG_INIT=
 __T_V_AWS_AS_CFGINIT_AUTO_HOIST=
 
@@ -1632,10 +1626,10 @@ if test "${aws_as_cfg_debug_init:+is_set}" = 'is_set'; then
             # (if any) sourced from the config file below will be effectively
             # ignored.
             #
-            __T_V_AWS_AS_DOING_INIT_DEBUG=true
+            __T_V_AWS_AS_CFG_DEBUG_INIT=true
         fi
 
-        if ${__T_V_AWS_AS_DOING_INIT_DEBUG}; then
+        if ${__T_V_AWS_AS_CFG_DEBUG_INIT}; then
             printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_debug_init: %s\n" \
                 "${aws_as_cfg_debug_init}" 1>&2
         fi
@@ -1681,16 +1675,11 @@ if test "${aws_as_cfg_debug_init:+is_set}" = 'is_set'; then
         if [[ "${aws_as_cfg_debug_init}" =~ ^(true|false)$ ]]; then
 
             if ${cfg_as_cfg_debug_init}; then
-
-                # Once set, this never flips back. The aws_as_cfg_debug_init value
-                # (if any) sourced from the config file below will be effectively
-                # ignored.
-                #
-                __T_V_AWS_AS_DOING_INIT_DEBUG=true
+                __T_V_AWS_AS_CFG_DEBUG_INIT=true
             fi
 
-            if ${__T_V_AWS_AS_DOING_INIT_DEBUG}; then
-                printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_auto_hoist: %s\n" \
+            if ${__T_V_AWS_AS_CFG_DEBUG_INIT}; then
+                printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_debug_init: %s\n" \
                     "${aws_as_cfg_debug_init}" 1>&2
             fi
         else
@@ -1710,7 +1699,7 @@ if test "${aws_as_cfg_auto_hoist:+is_set}" = 'is_set'; then
 
     if [[ "${aws_as_cfg_auto_hoist}" =~ ^(true|false)$ ]]; then
 
-        if ${__T_V_AWS_AS_DOING_INIT_DEBUG}; then
+        if ${__T_V_AWS_AS_CFG_DEBUG_INIT}; then
             printf "${__T_V_AWS_AS_PROG} (debug): config key aws_as_cfg_auto_hoist: %s\n" \
                 "${aws_as_cfg_auto_hoist}" 1>&2
         fi
