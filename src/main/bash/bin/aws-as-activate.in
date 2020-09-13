@@ -1005,6 +1005,8 @@ EOF
 
 function __t_f_aws_as_export_cred_vars () {
 
+    __t_f_aws_as_maybe_hoist_cred_vars || return $?
+
     local t_cnt=0
 
     test -n "${AWS_ACCESS_KEY_ID}"     && (( ++t_cnt ))
@@ -1043,6 +1045,8 @@ EOF
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_unexport_cred_vars () {
+
+    __t_f_aws_as_maybe_hoist_cred_vars || return $?
 
     if test -n "${AWS_ACCESS_KEY_ID}"; then
         ${__T_V_AWS_AS_DEBUGGING} \
