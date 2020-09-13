@@ -20,7 +20,7 @@
 #          avoid the shell emitting a syntax error.
 #
 #
-# Once "installed" in the user's shell, all traces of the funcationality can
+# Once "installed" in the user's shell, all traces of the functionality can
 # be removed by the installed 'aws-as-deactivate' function.
 
 declare -r PROG='aws-as-activate.in'
