@@ -650,7 +650,7 @@ EOF
     t_cleanup_statements+=('unset -f __t_f_aws_as_export_cred_vars')
     t_cleanup_statements+=('unset -f __t_f_aws_as_unexport_cred_vars')
     t_cleanup_statements+=('unset -f __t_f_aws_as_list_profiles')
-    t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as2')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_try_set_profile_as')
 
     # Design note: To the extent possible, the user-facing 'aws-as' function
     # should feel like a normal command to the end-user.
@@ -847,7 +847,7 @@ EOF
     "${CAT_PROG}" - <<'EOF'
 
 # @param: PROFILE
-function __t_f_aws_as_try_set_profile_as2 () {
+function __t_f_aws_as_try_set_profile_as () {
 
     local __required_count=1
     if test $# -ne ${__required_count}; then
@@ -1093,7 +1093,7 @@ function __t_f_aws_as_main () {
         fi
     fi
 
-    __t_f_aws_as_try_set_profile_as2 "${t_profile_name}"
+    __t_f_aws_as_try_set_profile_as "${t_profile_name}"
     if test $? -ne 0; then
 #        printf "${__T_V_AWS_AS_PROG} (error): error encountered why trying to switch to profile: \"%s\"; bailing out\n" "${t_profile_name}" 1>&2
         return 1
