@@ -650,7 +650,7 @@ EOF
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
     t_cleanup_statements+=('unset -f __t_f_aws_as_reset_dashv_flags')
     t_cleanup_statements+=(':')
-    t_cleanup_statements+=('unset -f __t_f_aws_as_clear_out_creds')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_clear_env_of_creds')
     t_cleanup_statements+=('unset -f __t_f_aws_as_unset_ineffect_profile')
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -f __t_f_aws_as_export_cred_vars')
@@ -681,6 +681,7 @@ __t_f_aws_as_print_help () {
     cat <<EODEF
 usage: \$__T_V_AWS_AS_PROG [-v...] { -h | --help }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -V | --version }
+  or:  \$__T_V_AWS_AS_PROG [-v...] { -c | --clear-env }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -C | --clear-creds }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -E | --export }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -L | --list-profiles }
@@ -695,7 +696,8 @@ CAREFUL: Bundling of short-form options is not (yet?) supported.
   -h, --help           Print this help message on stdout
   -V, --version        Print the version of the program on stdout
 
-  -C, --clear-creds    Unset AWS_* credential variables in the environment
+  -c, --clear-env      Unset AWS_* credential variables in the current environment
+  -C, --clear-creds    FIXME: WIP
 
   -E, --export         Mark the AWS_* credential variables for export
   -U, --unexport       Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
@@ -764,15 +766,15 @@ EOF
     #
     "${CAT_PROG}" - <<'EOF'
 
-function __t_f_aws_as_clear_out_creds () {
+function __t_f_aws_as_clear_env_of_creds () {
 
     local t_one_var_name
     for t_one_var_name in 'AWS_PROFILE' 'AWS_ACCESS_KEY_ID' 'AWS_SECRET_ACCESS_KEY' 'AWS_SESSION_TOKEN'; do
 
         if test "${!t_one_var_name:+is_set}" = 'is_set'; then
 
-            if ${__T_V_AWS_AS_DEBUGGING}; then
-                printf "${__T_V_AWS_AS_PROG} (debug): unsetting env var: %s\n" "${t_one_var_name}" 1>&2
+            if ${__T_V_AWS_AS_BE_VERBOSE}; then
+                printf "${__T_V_AWS_AS_PROG} (info): unsetting env var: %s\n" "${t_one_var_name}" 1>&2
             fi
             unset "${t_one_var_name}"
         fi
@@ -787,7 +789,7 @@ EOF
 
 function __t_f_aws_as_unset_ineffect_profile () {
 
-    __t_f_aws_as_clear_out_creds
+    __t_f_aws_as_clear_env_of_creds
     if test $? -ne 0; then
         printf "${__T_V_AWS_AS_PROG} (error): was error while attempting to clear creds from env; will not unset in-effect profile\n" 1>&2
         return 1
@@ -1044,8 +1046,8 @@ function __t_f_aws_as_main () {
                 return 0
                 ;;
 
-            '--clear-creds' | '-C')
-                __t_f_aws_as_clear_out_creds
+            '--clear-env' | '-c')
+                __t_f_aws_as_clear_env_of_creds
                 return $?
                 ;;
 

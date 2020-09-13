@@ -128,6 +128,41 @@ which they were fixed will be noted here, as well.
      will be made to mean "switch to the other one".
 
 
+**** aws-as: '-c' (--clear-env) now used to clear the AWS_* cred. vars. from the environment
+
+     https://github.com/salewski/aws-as/issues/30
+
+     With the introduction of 'aws-vault' integration the 'aws-as' program's
+     notion of the in-effect aws-cli profile has been decoupled from the
+     presence of any AWS_* credential variables in the current environment.
+
+     In aws-as-0.1.0, the following command would unset the vars from the
+     environment and also (implicitly) unset the in-effect profile (as
+     reflected in the augmented $PS1 prompt):
+
+         (some-prof-name) $ aws-as -C
+         (-) $
+
+     In aws-as-0.2.0 and going forward, clearing the AWS_* credential
+     variables from the current shell environment is done using the '-c'
+     (--clear-env) option:
+
+         (some-prof-name) $ aws-as -c
+         (some-prof-name) $
+
+     or, equivalently:
+
+         (some-prof-name) $ aws-as --clear-env
+         (some-prof-name) $
+
+     Note that clearing the AWS_* no longer unsets the in-effect profile (as
+     reflected in the unchanging value of the augmented $PS1 variable in the
+     above example).
+
+     See also the related changes of '--hoist' and '--clear-creds' elsewhere
+     in this announcement.
+
+
 * aws-as 0.1.0 (2020-09-12)
 
   This is the initial release of the 'aws-as' project.
