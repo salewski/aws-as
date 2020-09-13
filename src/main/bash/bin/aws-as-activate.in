@@ -557,10 +557,13 @@ EOF
     t_cleanup_statements+=(':')
 
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE_NONE')
     t_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_PS1')
     "${CAT_PROG}" - <<'EOF'
 
-__T_V_AWS_AS_PROFILE='-'
+__T_V_AWS_AS_PROFILE_NONE='_'
+
+__T_V_AWS_AS_PROFILE=${__T_V_AWS_AS_PROFILE_NONE}
 function __t_f_aws_as_maybe_update_PS1 () {
     if test "${PS1:+is_set}" = 'is_set'; then
         PS1='('"${__T_V_AWS_AS_PROFILE}"') '"${__t_v_aws_as_PS1_hold}"
@@ -646,7 +649,10 @@ EOF
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
     t_cleanup_statements+=('unset -f __t_f_aws_as_reset_dashv_flags')
+    t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -f __t_f_aws_as_clear_out_creds')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_unset_ineffect_profile')
+    t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -f __t_f_aws_as_export_cred_vars')
     t_cleanup_statements+=('unset -f __t_f_aws_as_unexport_cred_vars')
     t_cleanup_statements+=('unset -f __t_f_aws_as_list_profiles')
@@ -695,6 +701,9 @@ CAREFUL: Bundling of short-form options is not (yet?) supported.
   -U, --unexport       Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
 
   -L, --list-profiles  Print list of aws-cli profiles on stdout
+
+      --none           Unset the in-effect aws-cli profile
+                         Alternatively, can be expressed as AWS_CLI_PROFILE '_'.
 
   -v, --verbose        Print program progress messages on stderr. Specify multiple
                          times to increase verbosity: info, debug, and tracing (set -x)
@@ -757,16 +766,43 @@ EOF
 
 function __t_f_aws_as_clear_out_creds () {
 
-    unset AWS_PROFILE
-    unset AWS_ACCESS_KEY_ID
-    unset AWS_SECRET_ACCESS_KEY
-    unset AWS_SESSION_TOKEN
+    local t_one_var_name
+    for t_one_var_name in 'AWS_PROFILE' 'AWS_ACCESS_KEY_ID' 'AWS_SECRET_ACCESS_KEY' 'AWS_SESSION_TOKEN'; do
 
-    __T_V_AWS_AS_PROFILE='-'
+        if test "${!t_one_var_name:+is_set}" = 'is_set'; then
+
+            if ${__T_V_AWS_AS_DEBUGGING}; then
+                printf "${__T_V_AWS_AS_PROG} (debug): unsetting env var: %s\n" "${t_one_var_name}" 1>&2
+            fi
+            unset "${t_one_var_name}"
+        fi
+    done
+
+    return 0
+}
+EOF
+
+
+    "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aws_as_unset_ineffect_profile () {
+
+    __t_f_aws_as_clear_out_creds
+    if test $? -ne 0; then
+        printf "${__T_V_AWS_AS_PROG} (error): was error while attempting to clear creds from env; will not unset in-effect profile\n" 1>&2
+        return 1
+    fi
+
+    if ${__T_V_AWS_AS_DEBUGGING}; then
+       printf "${__T_V_AWS_AS_PROG} (debug): unsetting the in-effect profile\n" 1>&2
+    fi
+
+    __T_V_AWS_AS_PROFILE=${__T_V_AWS_AS_PROFILE_NONE}
     __t_f_aws_as_maybe_update_PS1
     return 0
 }
 EOF
+
 
     # Support for aws-as '-E' (--export) opt
     # https://github.com/salewski/aws-as/issues/3
@@ -885,6 +921,19 @@ function __t_f_aws_as_try_set_profile_as () {
         return 0
     fi
 
+    if test "${t_profile_name}" = "${__T_V_AWS_AS_PROFILE_NONE}"; then
+
+        # User-specified magic short-hand syntax '_' for the profile name,
+        # equivalent to our '--none' option.
+
+        __t_f_aws_as_unset_ineffect_profile
+        if test $? -ne 0; then
+            printf "${__T_V_AWS_AS_PROG} (error): was unable to reset the in-effect profile\n" 1>&2
+            return 1
+        fi
+        return 0
+    fi
+
     if ${__T_V_AWS_AS_DEBUGGING}; then
         printf "${__T_V_AWS_AS_PROG} (info): querying aws-cli for current list of profiles\n" 1>&2
     fi
@@ -930,7 +979,7 @@ function __t_f_aws_as_try_set_profile_as () {
     # unintended interactions between our aws-cli command line params
     # and any AWS_* variables that were set in the environment.
     #
-    __t_f_aws_as_clear_out_creds
+    __t_f_aws_as_unset_ineffect_profile
 
     # This invocation of 'aws-vault' is being performed for the side-effect of
     # forcing the establishment, if necessary, of a session using temporary
@@ -1014,6 +1063,17 @@ function __t_f_aws_as_main () {
                 __t_f_aws_as_list_profiles
                 return $?
                 ;;
+
+
+            '--none')
+                __t_f_aws_as_unset_ineffect_profile
+                if test $? -ne 0; then
+                    printf "${__T_V_AWS_AS_PROG} (error): was unable to reset the in-effect profile\n" 1>&2
+                    return 1
+                fi
+                return 0
+                ;;
+
 
             '--verbose' | '-v' )
                 if ${__T_V_AWS_AS_BE_VERBOSE}; then

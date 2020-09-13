@@ -97,6 +97,36 @@ which they were fixed will be noted here, as well.
      Speed is a feature.
 
 
+**** aws-as: add option '--none' and value '_' to mean "no profile"
+
+     https://github.com/salewski/aws-as/issues/29
+
+     An aws-as '--none' option has been added to mean "unset the in-effect
+     aws-cli profile".
+
+     An alternative way to request the same thing is to specify '_' (a single
+     underscore character) as the name of the AWS_CLI_PROFILE command line
+     argument. Therefore, all of the following are equivalent:
+
+         (some-prof-name) $ aws-as --none
+         (_) $
+
+         (some-prof-name) $ aws-as _
+         (_) $
+
+         (some-prof-name) $ aws-as -- _
+         (_) $
+
+     It is expected that experienced users will tend to use the second form
+     (aws-as _), and newer users will discover it via their use of '--none'
+     (which shows up in the program's '--help' output).
+
+     Note that the augmented $PS1 prompt has been changed to show '_' rather
+     than '-' to indicate "no aws-cli profile is currently in-effect". This
+     aligns the displayed notation with what the user actually types. This
+     will become more important once issue #5 is implemented, in which '-'
+     will be made to mean "switch to the other one".
+
 
 * aws-as 0.1.0 (2020-09-12)
 
