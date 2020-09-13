@@ -21,7 +21,7 @@ which they were fixed will be noted here, as well.
 -----------------------------------------------------------------------
 
 
-* aws-as 0.1.1 (TBD)
+* aws-as 0.2.0 (TBD)
 
 ** fixes
 
@@ -35,9 +35,61 @@ which they were fixed will be noted here, as well.
     The 'aws-as' program now uses the 'aws-vault' program for some tasks that
     were previously done directly, or more slowly through aws-cli.
 
+    This adds a new configure time dependency on the 'aws-vault' program from
+    99designs:
+
+       https://github.com/99designs/aws-vault
+
+       https://github.com/99designs/aws-vault/blob/master/USAGE.md
+
+       https://99designs.com/blog/engineering/aws-vault/
+
+    This new dependency will require:
+
+       1. one-time setup of the aws-vault tool and it's dependencies
+
+          This mainly involves choosing a storage backend and configuring it.
+
+       2. one-time config of one or more aws-cli profiles
+
+          This involves storing the credentials in aws-vault for one or more
+          of your aws-cli profiles with what AWS calls "long-term credentials"
+          (those that may currently be stored in your ~/.aws/credentials file).
+
+          This step will allow aws-vault to obtain temporary credentials
+          (sts:GetSessionToken) for the "source_profile" entries (with MFA, if
+          so configured), which can then be used to obtain other temporary
+          credentials when assuming roles (sts:AssumeRole) for the other
+          dependent profiles.
+
+    It should be noted that 'aws-vault' takes an approach to the 'aws-cli'
+    configuration that is similar to the approach used by `aws-as': both tools
+    leverage the 'aws-cli' config file(s). The notion of what a "profile" is
+    comes from the 'aws-cli' config.
+
+    The 'aws-vault' tool honors the 'mfa_serial' serial setting on all
+    'aws-cli' profiles, and like 'aws-as-0.1.1' (but /unlike/ raw 'aws-cli')
+    will require MFA authentication when obtaining short-term session
+    credentials (sts:GetSessionToken) for a non-Role profile when the
+    'mfa_serial' key is present. This means any 'aws_as_mfa_serial' config
+    keys on such profiles should be renamed to just 'mfa_serial'.
+
+    Finally, the dependency on 'aws-vault' allows us to remove some of our
+    other dependencies (jq(1), python3(1), others), at least for now.
+
+
+**** aws-as's home-grown, file-based caching has been replaced by aws-vault
+
+     issue #25: "aws-as: replace home-grown, file-based caching with aws-vault"
+     https://github.com/salewski/aws-as/issues/25
+
+     The ~/.aws-as.d/cache/ subdirectory is no longer used or needed. You
+     should delete it if you have one.
+
+
 **** listing the aws-cli profiles (aws-as -L) now uses aws-vault internally
 
-     "aws-as: 'L' (--list-profiles) would be much faster if implemented via 'aws-vault' (rather than aws-cli)"
+     issue #23: "aws-as: 'L' (--list-profiles) would be much faster if implemented via 'aws-vault' (rather than aws-cli)"
      https://github.com/salewski/aws-as/issues/23
 
      Speed is a feature.

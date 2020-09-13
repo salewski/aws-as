@@ -18,7 +18,7 @@ dnl     [AC_]PACKAGE_BUGREPORT
 dnl     [AC_]PACKAGE_URL
 dnl
 AC_INIT([[aws-as]],
-        [[0.1.1-snapshot]],
+        [[0.2.0-snapshot]],
         [[Alan D. Salewski <salewski@att.net>]],
         [[aws-as]],
         [[https://github.com/salewski/aws-as]])
@@ -168,13 +168,13 @@ dnl if test -z "$ID_PROG"; then
 dnl     AC_MSG_ERROR([id program not found])
 dnl fi
 
-# jq - command line JSON parser and manipulation language
-#      see: https://github.com/stedolan/jq
-#
-AC_PATH_PROG([JQ_PROG], [jq])
-if test -z "$JQ_PROG"; then
-    AC_MSG_ERROR([jq program not found])
-fi
+dnl # jq - command line JSON parser and manipulation language
+dnl #      see: https://github.com/stedolan/jq
+dnl #
+dnl AC_PATH_PROG([JQ_PROG], [jq])
+dnl if test -z "$JQ_PROG"; then
+dnl     AC_MSG_ERROR([jq program not found])
+dnl fi
 
 AC_PATH_PROG([MKDIR_PROG], [mkdir])
 if test -z "$MKDIR_PROG"; then
@@ -206,10 +206,10 @@ if test -z "$TRUE_PROG"; then
     AC_MSG_ERROR([true not found])
 fi
 
-AC_PATH_PROG([XARGS_PROG], [xargs])
-if test -z "$XARGS_PROG"; then
-    AC_MSG_ERROR([xargs not found])
-fi
+dnl AC_PATH_PROG([XARGS_PROG], [xargs])
+dnl if test -z "$XARGS_PROG"; then
+dnl     AC_MSG_ERROR([xargs not found])
+dnl fi
 
 
 dnl require /at least/ perl version 5.005
@@ -317,12 +317,10 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]DATE_PROG[@],$(DATE_PROG),g'"'"' \
   -e '"'"'s,[@]ECHO_PROG[@],$(ECHO_PROG),g'"'"' \
   -e '"'"'s,[@]EXPR_PROG[@],$(EXPR_PROG),g'"'"' \
-  -e '"'"'s,[@]JQ_PROG[@],$(JQ_PROG),g'"'"' \
   -e '"'"'s,[@]MKDIR_PROG[@],$(MKDIR_PROG),g'"'"' \
   -e '"'"'s,[@]PYTHON[@],$(PYTHON),g'"'"' \
   -e '"'"'s,[@]SED[@],$(SED),g'"'"' \
   -e '"'"'s,[@]TRUE_PROG[@],$(TRUE_PROG),g'"'"' \
-  -e '"'"'s,[@]XARGS_PROG[@],$(XARGS_PROG),g'"'"' \
 '
 ]
 AC_SUBST([do_subst_command])
@@ -447,7 +445,6 @@ printf "                     aws-vault: %s\n" "`__poor_mans_expand_file_name AWS
 printf "                          bash: %s\n" "`__poor_mans_expand_file_name BASH_SH`"
 printf "                         chmod: %s\n" "`__poor_mans_expand_file_name CHMOD_PROG`"
 printf "                          date: %s\n" "`__poor_mans_expand_file_name DATE_PROG`"
-printf "                            jq: %s\n" "`__poor_mans_expand_file_name JQ_PROG`"
 printf "                         mkdir: %s\n" "`__poor_mans_expand_file_name MKDIR_PROG`"
 printf "                          perl: %s\n" "`__poor_mans_expand_file_name PERL`"
 printf "                       pod2man: %s\n" "`__poor_mans_expand_file_name POD2MAN`"
