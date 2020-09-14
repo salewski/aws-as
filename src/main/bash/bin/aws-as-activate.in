@@ -758,6 +758,7 @@ usage: \$__T_V_AWS_AS_PROG [-v...] { -h | --help }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -L | --list-profiles }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -U | --unexport }
   or:  \$__T_V_AWS_AS_PROG [-v...] --generate-config
+  or:  \$__T_V_AWS_AS_PROG [-v...] --none
   or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] { AWS_CLI_PROFILE | - }
 
 Switch to using creds from the specified aws-cli profile,
