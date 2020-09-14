@@ -570,12 +570,16 @@ EOF
 
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE_NONE')
+    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PROFILE_OLD')
     t_cleanup_statements+=('unset -f __t_f_aws_as_maybe_update_PS1')
     "${CAT_PROG}" - <<'EOF'
 
 __T_V_AWS_AS_PROFILE_NONE='_'
 
 __T_V_AWS_AS_PROFILE=${__T_V_AWS_AS_PROFILE_NONE}
+
+__T_V_AWS_AS_PROFILE_OLD=
+
 function __t_f_aws_as_maybe_update_PS1 () {
     if test "${PS1:+is_set}" = 'is_set'; then
         PS1='('"${__T_V_AWS_AS_PROFILE}"') '"${__t_v_aws_as_PS1_hold}"
@@ -760,7 +764,7 @@ usage: \$__T_V_AWS_AS_PROG [-v...] { -h | --help }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -L | --list-profiles }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -U | --unexport }
   or:  \$__T_V_AWS_AS_PROG [-v...] --generate-config
-  or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] AWS_CLI_PROFILE
+  or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] { AWS_CLI_PROFILE | - }
 
 Switch to using creds from the specified aws-cli profile,
 authenticating with MFA, if necessary.
@@ -794,6 +798,8 @@ CAREFUL: Bundling of short-form options is not (yet?) supported.
 
   -v, --verbose          Print program progress messages on stderr. Specify multiple
                            times to increase verbosity: info, debug, and tracing (set -x)
+
+      -                  Switch to previous profile (analogous to 'cd -')
 
       --                 Signals the end of options and disables further options processing.
                            Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
@@ -945,6 +951,12 @@ function __t_f_aws_as_clear_env_of_creds () {
 EOF
 
 
+    # This is called NOT ONLY when unsetting the in-effect profile as a final
+    # action (--none), BUT ALSO when switching between profiles.
+    #
+    # Sets __T_V_AWS_AS_PROFILE_OLD to the currently in-effect profile, if
+    # any.
+    #
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_unset_ineffect_profile () {
@@ -957,6 +969,10 @@ function __t_f_aws_as_unset_ineffect_profile () {
 
     if ${__T_V_AWS_AS_DEBUGGING}; then
        printf "${__T_V_AWS_AS_PROG} (debug): unsetting the in-effect profile\n" 1>&2
+    fi
+
+    if test "${__T_V_AWS_AS_PROFILE}" = "${__T_V_AWS_AS_PROFILE_NONE}"; then :; else
+        __T_V_AWS_AS_PROFILE_OLD=${__T_V_AWS_AS_PROFILE}
     fi
 
     __T_V_AWS_AS_PROFILE=${__T_V_AWS_AS_PROFILE_NONE}
@@ -1493,6 +1509,31 @@ function __t_f_aws_as_main () {
                 ;;
 
 
+            '-')  # shorthand for "switch to the other profile" (1st)
+                  #
+                  # See also separate handling for this below when specified after the '--' opt.
+
+                if ${t_profile_name_provided}; then
+                    printf "${__T_V_AWS_AS_PROG} (error): too many AWS_CLI_PROFILE parameters provided (\"%s\"); bailing out\n" "${1}" 1>&2
+                    __t_f_aws_as_print_help 1>&2
+                    return 1
+                fi
+                if test "${__T_V_AWS_AS_PROFILE_OLD:+is_set}" = 'is_set'; then
+                    t_profile_name=${__T_V_AWS_AS_PROFILE_OLD}
+                    t_profile_name_provided=true
+                else
+                    # We deliberately do not have a serverity level on this
+                    # message (error, warn, ...) because the message is just
+                    # situational, and the user is likely to see it
+                    # frequently.
+                    #
+                    printf "${__T_V_AWS_AS_PROG}: old profile not set\n" 1>&2
+                    return 1
+                fi
+                shift
+                ;;
+
+
             '--')
                 shift
                 break
@@ -1536,6 +1577,29 @@ function __t_f_aws_as_main () {
         if test $# -gt 1; then
             printf "${__T_V_AWS_AS_PROG} (error): have %d unrecognized parameters (%s); bailing out\n" "$#" "$@" 1>&2
             __t_f_aws_as_print_help 1>&2
+            return 1
+        fi
+    fi
+
+    if test "${t_profile_name}" = '-'; then
+        # shorthand for "switch to the other profile" (2nd); specified as:
+        #
+        #     $ aws-as -- -
+        #
+        # See also separate handling for this above when specified before the
+        # '--' opt (which is really the way it is intended to be used):
+        #
+        #     $ aws-as -
+        #
+        if test "${__T_V_AWS_AS_PROFILE_OLD:+is_set}" = 'is_set'; then
+            t_profile_name=${__T_V_AWS_AS_PROFILE_OLD}
+        else
+            # We deliberately do not have a serverity level on this
+            # message (error, warn, ...) because the message is just
+            # situational, and the user is likely to see it
+            # frequently.
+            #
+            printf "${__T_V_AWS_AS_PROG}: old profile not set\n" 1>&2
             return 1
         fi
     fi

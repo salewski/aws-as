@@ -30,6 +30,23 @@ which they were fixed will be noted here, as well.
 
 ** improvements
 
+*** 'aws-as -' now means "switch to the other profile"
+
+    https://github.com/salewski/aws-as/issues/5
+
+    This allows even faster switching back and forth between two profiles. The
+    behavior is intended to be analogous to the 'cd -' command in your shell
+    to hop back and forth between two directories.
+
+    Upon activation, there will not yet be an "old profile" to hop back to, so
+    using this syntax in that scenario will yield the message (on stderr):
+
+        aws-as: old profile not set
+
+    The same is actually true until you switch to a second profile within a
+    session, for obvious reasons.
+
+
 *** aws-vault integration
 
 **** Background on aws-vault integration
