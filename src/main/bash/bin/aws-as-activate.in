@@ -67,9 +67,7 @@ TRUE_PROG="${TRUE:-@TRUE_PROG@}"
 CHMOD_PROG="${CHMOD:-@CHMOD_PROG@}"
 MKDIR_PROG="${MKDIR:-@MKDIR_PROG@}"
 
-#AWS_PROG="${AWS:-@AWS_PROG@}"
 AWS_VAULT_PROG="${AWS_VAULT:-@AWS_VAULT_PROG@}"
-#PYTHON3_PROG="${PYTHON:-@PYTHON@}"
 
 
 opt_target_csh=false  # enable with -c  (or by a $SHELL that looks like a csh style shell)
@@ -539,7 +537,6 @@ EOF
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CAT_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_SED_PROG')
-#    t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_AWS_VAULT_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_CHMOD_PROG')
     t_cleanup_statements+=(':')
@@ -547,13 +544,11 @@ EOF
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_DATE_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_TRUE_PROG')
     t_cleanup_statements+=('unset -v __T_V_AWS_AS_MKDIR_PROG')
-#    t_cleanup_statements+=('unset -v __T_V_AWS_AS_PYTHON3_PROG')
 
     "${CAT_PROG}" - <<EOF  # interpolating heredoc statements (okay)
 
 __T_V_AWS_AS_CAT_PROG='${CAT_PROG}'
 __T_V_AWS_AS_SED_PROG='${SED_PROG}'
-#__T_V_AWS_AS_AWS_PROG='${AWS_PROG}'
 __T_V_AWS_AS_AWS_VAULT_PROG='${AWS_VAULT_PROG}'
 __T_V_AWS_AS_CHMOD_PROG='${CHMOD_PROG}'
 
@@ -561,7 +556,6 @@ __T_V_AWS_AS_BASH_PROG='${BASH_PROG}'
 __T_V_AWS_AS_DATE_PROG='${DATE_PROG}'
 __T_V_AWS_AS_TRUE_PROG='${TRUE_PROG}'
 __T_V_AWS_AS_MKDIR_PROG='${MKDIR_PROG}'
-#__T_V_AWS_AS_PYTHON3_PROG='${PYTHON3_PROG}'
 EOF
 
     # switch back to using non-interpolated heredoc

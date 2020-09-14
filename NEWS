@@ -30,6 +30,14 @@ which they were fixed will be noted here, as well.
 
 ** improvements
 
+*** simpler configure time and runtime deps
+
+**** python3 no longer required
+
+
+**** aws-cli no longer required
+
+
 *** 'aws-as -' now means "switch to the other profile"
 
     https://github.com/salewski/aws-as/issues/5

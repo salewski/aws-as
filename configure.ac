@@ -45,38 +45,25 @@ dnl +------------------------+
 dnl makes $(LN_S) available in our Makefile.am files
 AC_PROG_LN_S
 
-dnl XXX: I'm not sure whether or not there is a minimum version of python that
-dnl      will work for our embedded one-liner(s). For now, just hoping for the
-dnl      best with any version of Python 3. I suspect Python 2 will work, as
-dnl      well, but don't want to support it.
-dnl
-dnl      If you run into problems with a given version of python, please let
-dnl      us know.
-dnl
-dnl Note that this macro makes available the various PYTHON_* variables,
-dnl including 'PYTHON' (the path to the interpretter).
-dnl
-AM_PATH_PYTHON([3])
-
 dnl AC_PATH_PROG(AWK_PROG, awk)
 dnl if test -z "$AWK_PROG"; then
 dnl     AC_MSG_ERROR([awk not found])
 dnl fi
 
 
-## The 'aws' program as supplied by the 'aws/aws-cli' GitHub repo or the
-## 'awscli' Debian package. Either version 1 or 2 should work fine for our
-## purposes.
-##
-##     https://aws.amazon.com/cli/
-##     https://github.com/aws/aws-cli
-##
-##     https://tracker.debian.org/pkg/awscli
-##
-AC_PATH_PROG(AWS_PROG, aws)
-if test -z "$AWS_PROG"; then
-    AC_MSG_ERROR([aws not found])
-fi
+dnl ## The 'aws' program as supplied by the 'aws/aws-cli' GitHub repo or the
+dnl ## 'awscli' Debian package. Either version 1 or 2 should work fine for our
+dnl ## purposes.
+dnl ##
+dnl ##     https://aws.amazon.com/cli/
+dnl ##     https://github.com/aws/aws-cli
+dnl ##
+dnl ##     https://tracker.debian.org/pkg/awscli
+dnl ##
+dnl AC_PATH_PROG(AWS_PROG, aws)
+dnl if test -z "$AWS_PROG"; then
+dnl     AC_MSG_ERROR([aws not found])
+dnl fi
 
 ## The 'aws-vault' program as supplied by 99designs. Used by `aws-as` for
 ## caching temporary AWS credentials, and related.
@@ -309,7 +296,6 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]PERL[@],$(PERL),g'"'"' \
   -e '"'"'s,[@]POD2MAN[@],$(POD2MAN),g'"'"' \
   \
-  -e '"'"'s,[@]AWS_PROG[@],$(AWS_PROG),g'"'"' \
   -e '"'"'s,[@]AWS_VAULT_PROG[@],$(AWS_VAULT_PROG),g'"'"' \
   -e '"'"'s,[@]BASH_SH[@],$(BASH_SH),g'"'"' \
   -e '"'"'s,[@]CAT[@],$(CAT),g'"'"' \
@@ -318,7 +304,6 @@ do_subst_command='do_subst = sed \
   -e '"'"'s,[@]ECHO_PROG[@],$(ECHO_PROG),g'"'"' \
   -e '"'"'s,[@]EXPR_PROG[@],$(EXPR_PROG),g'"'"' \
   -e '"'"'s,[@]MKDIR_PROG[@],$(MKDIR_PROG),g'"'"' \
-  -e '"'"'s,[@]PYTHON[@],$(PYTHON),g'"'"' \
   -e '"'"'s,[@]SED[@],$(SED),g'"'"' \
   -e '"'"'s,[@]TRUE_PROG[@],$(TRUE_PROG),g'"'"' \
 '
@@ -440,7 +425,7 @@ printf "               System binaries: %s\n" "`__poor_mans_expand_file_name sbi
 printf "           Configuration files: %s\n" "`__poor_mans_expand_file_name sysconfdir`"
 printf "                  Manual pages: %s\n" "`__poor_mans_expand_file_name mandir`"
 printf "\n"
-printf "                           aws: %s\n" "`__poor_mans_expand_file_name AWS_PROG`"
+dnl printf "                           aws: %s\n" "`__poor_mans_expand_file_name AWS_PROG`"
 printf "                     aws-vault: %s\n" "`__poor_mans_expand_file_name AWS_VAULT_PROG`"
 printf "                          bash: %s\n" "`__poor_mans_expand_file_name BASH_SH`"
 printf "                         chmod: %s\n" "`__poor_mans_expand_file_name CHMOD_PROG`"
@@ -448,7 +433,6 @@ printf "                          date: %s\n" "`__poor_mans_expand_file_name DAT
 printf "                         mkdir: %s\n" "`__poor_mans_expand_file_name MKDIR_PROG`"
 printf "                          perl: %s\n" "`__poor_mans_expand_file_name PERL`"
 printf "                       pod2man: %s\n" "`__poor_mans_expand_file_name POD2MAN`"
-printf "                        python: %s\n" "`__poor_mans_expand_file_name PYTHON` (`__poor_mans_expand_file_name PYTHON_VERSION`)"
 printf "\n"
 
 
