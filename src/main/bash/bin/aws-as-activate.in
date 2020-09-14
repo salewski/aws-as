@@ -796,7 +796,7 @@ CAREFUL: Bundling of short-form options is not (yet?) supported.
       -                  Switch to previous profile (analogous to 'cd -')
 
       --                 Signals the end of options and disables further options processing.
-                           Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
+                           Any remaining argument will be interpreted as the AWS_CLI_PROFILE.
 
 Report bugs to $MAINTAINER.
 EODEF
