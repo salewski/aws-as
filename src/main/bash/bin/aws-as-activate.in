@@ -1643,6 +1643,261 @@ function aws-as () {
 EOF
 
 
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -f aagg')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AAGG_PROG')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -v __T_V_AAGG_BE_VERBOSE')
+    t_cleanup_statements+=('unset -v __T_V_AAGG_DEBUGGING')
+    t_cleanup_statements+=('unset -v __T_V_AAGG_TRACING')
+    t_cleanup_statements+=(':')
+    t_cleanup_statements+=('unset -f __t_f_aagg_main')
+    t_cleanup_statements+=('unset -f __t_f_aagg_print_help')
+    t_cleanup_statements+=('unset -f __t_f_aagg_print_version')
+    t_cleanup_statements+=('unset -f __t_f_aagg_reset_dashv_flags')
+
+    "${CAT_PROG}" - <<EOF  # interpolating
+
+__T_V_AAGG_PROG='aagg'
+
+__T_V_AAGG_BE_VERBOSE=false
+__T_V_AAGG_DEBUGGING=false
+__T_V_AAGG_TRACING=false
+
+function __t_f_aagg_reset_dashv_flags () {
+    __T_V_AAGG_BE_VERBOSE=false
+    __T_V_AAGG_DEBUGGING=false
+    __T_V_AAGG_TRACING=false
+    return 0
+}
+EOF
+
+    "${CAT_PROG}" - <<EOF  # interpolating
+
+__t_f_aagg_print_help () {
+
+    cat <<EODEF
+usage: \$__T_V_AAGG_PROG [-v...] { -h | --help }
+  or:  \$__T_V_AAGG_PROG [-v...] { -V | --version }
+  or:  \$__T_V_AAGG_PROG [OPTION...] [--] COMMAND [ARG...]
+
+Use aws-vault to run (exec) COMMAND in the context of the in-effect
+aws-cli profile, as established by using aws-as(1).
+
+CAREFUL: Bundling of short-form options is not (yet?) supported.
+
+  -h, --help     Print this help message on stdout
+  -V, --version  Print the version of the program on stdout
+
+  -v, --verbose  Print program progress messages on stderr. Specify multiple
+                   times to increase verbosity: info, debug, and tracing (set -x)
+
+      --         Signals the end of options and disables further options processing.
+                   Any remaining argument will be interpreted as the COMMAND and its ARGs.
+
+Report bugs to $MAINTAINER.
+EODEF
+}
+EOF
+
+
+    "${CAT_PROG}" - <<EOF  # interpolating
+
+__t_f_aagg_print_version () {
+    cat <<EODEF
+\${__T_V_AAGG_PROG} ${gl_const_release}
+
+Copyright (C) ${COPYRIGHT_DATES} Alan D. Salewski <salewski@att.net>
+License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Alan D. Salewski.
+EODEF
+}
+EOF
+
+
+    "${CAT_PROG}" - <<'EOF'
+
+function __t_f_aagg_main () {
+
+    local -a t_command_and_args
+    t_command_and_args=()
+
+    while test $# -gt 0; do
+        case $1 in
+            '--help' | '-h')
+                __t_f_aagg_print_help
+                return 0
+                ;;
+
+            '--version' | '-V')
+                __t_f_aagg_print_version
+                return 0
+                ;;
+
+            '--verbose' | '-v' )
+                if ${__T_V_AAGG_BE_VERBOSE}; then
+
+                    if ${__T_V_AAGG_DEBUGGING}; then
+
+                        # We've seen at least two -v opt before, so now we're
+                        # turning tracing on.
+
+                        if ${__T_V_AAGG_TRACING}; then
+                            : $PROG \(trace: $LINENO\): tracing already enabled
+                        else
+                            # Enable tracking before setting our app-level
+                            # ${__T_V_AAGG_TRACING} flag so that setting it
+                            # is the first thing that appears in the trace.
+                            set -x
+                            __T_V_AAGG_TRACING=true
+                        fi
+                    else
+                        # Second -v opt we're seeing
+                        __T_V_AAGG_DEBUGGING=true
+                        # Just to give a warm and fuzzy...
+                        printf "${__T_V_AAGG_PROG} (debug): debug-level output enabled\n" 1>&2
+                    fi
+                else
+                    # First -v opt we're seeing
+                    __T_V_AAGG_BE_VERBOSE=true
+                fi
+                shift
+                ;;
+
+
+            '--')
+                shift
+                break
+                ;;
+
+            *)
+                # assume is start of COMMAND; user did not separate it with '--' (okay)
+                break
+                ;;
+        esac
+    done
+
+    # XXX: Yes, inspecting shared global state between aws-as and aagg.
+    #
+    if test "${__T_V_AWS_AS_PROFILE}" = "${__T_V_AWS_AS_PROFILE_NONE}"; then
+
+        # If there is no in-effect profile, then we will not be able to setup
+        # the command line for 'aws-vault' to invoke.
+        #
+        printf "${__T_V_AAGG_PROG} (error): no in-effect profile; see aws-as(1) to set it up\n" 1>&2
+        return 1
+    fi
+
+    if test $# -eq 0; then
+        printf "${__T_V_AAGG_PROG} (error): COMMAND not specified; bailing out\n" 1>&2
+        __t_f_aagg_print_help 1>&2
+        return 1
+    fi
+
+    while test $# -gt 0; do
+        t_command_and_args+=("$1")
+        shift
+    done
+
+    local t_xtrace_was_enabled
+    t_xtrace_was_enabled=false
+    case $- in
+        *x*)
+            t_xtrace_was_enabled=true
+            ;;
+        *)  # ignore
+            ;;
+    esac
+
+    local -a t_global_opts=()
+
+    if ${__T_V_AAGG_DEBUGGING}; then
+        t_global_opts+='--debug'
+    fi
+
+    local t_estat
+    if ${__T_V_AAGG_BE_VERBOSE}; then
+        # aagg does not emit much noise, but when the user is looking for more
+        # information the main piece of interesting information is the command
+        # line used to invoke aws-vault. The user should not have to wade
+        # through a full trace output (-v -v -v) to see how aws-vault was
+        # invoked, so we break the rules here a little to provide a better
+        # user experience.
+        #
+        set -x
+    fi
+    "${__T_V_AWS_AS_AWS_VAULT_PROG}" "${t_global_opts[@]}" \
+                                exec "${__T_V_AWS_AS_PROFILE}" \
+                                     -- "${t_command_and_args[@]}"
+    t_estat=$?
+    if $t_xtrace_was_enabled; then
+        : ${__T_V_AAGG_PROG} \(trace: $LINENO\): tracing was previously enabled, no need to disable it here
+    else
+        if [[ $- =~ .*x.* ]]; then
+            set +x  # restore to previous state
+        fi
+    fi
+
+    return $t_estat
+}
+EOF
+
+
+    # The 'aagg' command is intended to complement the 'aws-as' command. The
+    # basic idea is that 'aws-as' is used to hop between aws-cli profiles and
+    # otherwise get the current shell environment setup in the desired state.
+    #
+    # The 'aagg' command then piggy-backs on that state to make it easy to
+    # invoke commands using the in-effect profile (as setup by aws-as). Since
+    # any necessary authentication (including entering MFA tokens) was done
+    # when you switched to the in-effect profile using aws-as, when you go to
+    # use aagg to run commands using that profile everything "just work".
+    #
+    # The aagg command is really just intended as a fast way to type whatever
+    # 'aws-vault exec' command you would otherwise run with the in-effect
+    # profile, if you had the patience to type it out. Since you don't have
+    # the patience to type it out, aagg will do it for you.
+    #
+    "${CAT_PROG}" - <<'EOF'
+
+# aagg == (A)WS-(a)-(g)o-(g)o
+# Read as: "AWS-a-go-go"
+# Dumb name; is easy to type; is grep-friendly.
+#
+function aagg () {
+    local t_rstat
+    local t_xtrace_was_enabled=false
+    case $- in
+        *x*)
+            t_xtrace_was_enabled=true
+            ;;
+        *)  # ignore
+            ;;
+    esac
+    __t_f_aagg_main "$@"
+    t_rstat=$?
+
+    __t_f_aagg_reset_dashv_flags
+
+    # If tracing was enabled during our run, we need to disable it again
+    # (unless it had already been enabled to begin with)
+    if [[ $- =~ .*x.* ]]; then
+        if $t_xtrace_was_enabled; then
+            : ${__T_V_AAGG_PROG} \(trace: $LINENO\): xtrace had previously been enabled -- no need to disable it
+        else
+            set +x
+        fi
+    fi
+
+    return $t_rstat
+}
+EOF
+
+
     "${CAT_PROG}" - <<'EOF'
 
 function __t_f_aws_as_cleanup () {

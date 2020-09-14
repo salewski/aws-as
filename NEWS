@@ -229,6 +229,61 @@ which they were fixed will be noted here, as well.
      operation on them.
 
 
+**** aagg: command to invoke 'aws-vault exec' with the in-effect aws-cli profile
+
+     https://github.com/salewski/aws-as/issues/4
+
+     Once you have used 'aws-as' to establish an in-effect aws-cli profile in
+     the context of your current shell, the next thing you'll want to do is
+     run one or more commands that somehow use the AWS API.
+
+     The 'aagg' command is the primary way to do that. It is a very simple
+     wrapper around the 'aws-vault exec' command that sets up the invocation
+     using the in-effect profile. As a user, you just prefix the command you
+     really want to run with 'aagg':
+
+         aagg YOUR_COMMAND [ARG...]
+
+     The 'aagg' command will build the approprate 'aws-vault' command line to
+     use the aws-cli credentials for the in-effect profile. So the above would
+     cause an invocation like this:
+
+         /path/to/aws-vault [OPT...] exec IN_EFFECT_PROFILE_NAME -- YOUR_COMMAND [ARG...]
+
+     Here's an example session:
+
+         $ eval "$(aws-as-activate -s)"
+
+         (_) $ aws-as some-prof-name
+         [MFA auth, etc, if necessary]
+
+         (some-prof-name) $ aagg aws sts get-caller-identity
+         {
+              "UserId": "AIDASOMERANDOMESTRING",
+              "Account": "111111111111",
+              "Arn": "arn:aws:iam::111111111111:user/someuser"
+         }
+
+     You can have 'aagg' show you the command it invokes by providing the '-v'
+     option:
+
+         (some-prof-name) $ aagg -v aws sts get-caller-identity
+         + /path/to/aws-vault exec some-prof-name -- aws sts get-caller-identity
+         {
+              "UserId": "AIDASOMERANDOMESTRING",
+              "Account": "111111111111",
+              "Arn": "arn:aws:iam::111111111111:user/someuser"
+         }
+         + t_estat=0
+         + false
+         + [[ himxBHs =~ .*x.* ]]
+         + set +x
+
+    As you would expect, the 'aagg' function and all of it's supporting
+    machinery get deleted from the current shell process when you invoke
+    'aws-as-deactivate'.
+
+
 *** aws-as now has a configuration file: ~/.aws-as.d/init.sh
 
     https://github.com/salewski/aws-as/issues/1
