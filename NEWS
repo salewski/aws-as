@@ -215,11 +215,31 @@ which they were fixed will be noted here, as well.
 *** aws-as now has a configuration file: ~/.aws-as.d/init.sh
 
     https://github.com/salewski/aws-as/issues/1
+    https://github.com/salewski/aws-as/issues/31
 
     If the file does not exist, it is created the first time the aws-as
     program is initialized. The auto-created version is heavily commented, and
     contains documentation for the full universe of supported config file
     variables.
+
+    A user can request that a config file be generated to stdout thus:
+
+        (_) $ aws-as --generate-config
+
+        # review what the latest default config file looks like
+        (_) $ aws-as --generate-config | less -N
+
+        # compare it to your current config (bash syntax)
+        (_) $ colordiff -u ~/.aws-as.d/init.sh <(aws-as --generate-config)
+
+        # replace your current config with a fresh default
+        (_) $ aws-as --generate-config > ~/.aws-as.d/init.sh
+
+        # Or, equivalently, just delete the existing file, and aws-as will
+        # write a new copy the next time it is activated:
+        $ rm ~/.aws-as.d/init.sh
+        $ eval "$(aws-as-activate -s)"
+        (_) $ less ~/.aws-as.d/init.sh
 
     The file is a Bourne-style shell script snippet, and is "sourced" by the
     aws-as(1) program at initialization time. For valid aws-as config file

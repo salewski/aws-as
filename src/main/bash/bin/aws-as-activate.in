@@ -712,6 +712,7 @@ EOF
     t_cleanup_statements+=('unset -f __t_f_aws_as_main')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_help')
     t_cleanup_statements+=('unset -f __t_f_aws_as_print_version')
+    t_cleanup_statements+=('unset -f __t_f_aws_as_print_dflt_cfg_file')
     t_cleanup_statements+=('unset -f __t_f_aws_as_reset_dashv_flags')
     t_cleanup_statements+=(':')
     t_cleanup_statements+=('unset -f __t_f_aws_as_clear_env_of_creds')
@@ -758,6 +759,7 @@ usage: \$__T_V_AWS_AS_PROG [-v...] { -h | --help }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -H | --hoist }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -L | --list-profiles }
   or:  \$__T_V_AWS_AS_PROG [-v...] { -U | --unexport }
+  or:  \$__T_V_AWS_AS_PROG [-v...] --generate-config
   or:  \$__T_V_AWS_AS_PROG [OPTION...] [--] AWS_CLI_PROFILE
 
 Switch to using creds from the specified aws-cli profile,
@@ -765,34 +767,36 @@ authenticating with MFA, if necessary.
 
 CAREFUL: Bundling of short-form options is not (yet?) supported.
 
-  -h, --help           Print this help message on stdout
-  -V, --version        Print the version of the program on stdout
+  -h, --help             Print this help message on stdout
+  -V, --version          Print the version of the program on stdout
 
-  -c, --clear-env      Unset AWS_* credential variables in the current environment
+  -c, --clear-env        Unset AWS_* credential variables in the current environment
 
-  -C, --clear-creds    Clear cached temporary credentials from the aws-vault cache
-                         for the in-effect aws-cli profile.
-                         Implies -c (--clear-creds) and --none.
+  -C, --clear-creds      Clear cached temporary credentials from the aws-vault cache
+                           for the in-effect aws-cli profile.
+                           Implies -c (--clear-creds) and --none.
 
-  -E, --export         Mark the AWS_* credential variables for export
-                         Implies -H (--hoist).
+  -E, --export           Mark the AWS_* credential variables for export
+                           Implies -H (--hoist).
 
-  -U, --unexport       Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
-                         Implies -H (--hoist).
+  -U, --unexport         Un-mark the AWS_* creds vars for export (turn off 'x' attribute)
+                           Implies -H (--hoist).
 
-  -H, --hoist          "Hoist up" into the current environment AWS_* credential
-                         variables associated with the in-effect profile
+  -H, --hoist            "Hoist up" into the current environment AWS_* credential
+                           variables associated with the in-effect profile
 
-  -L, --list-profiles  Print list of aws-cli profiles on stdout
+      --generate-config  Print on stdout a default configuration file
 
-      --none           Unset the in-effect aws-cli profile
-                         Alternatively, can be expressed as AWS_CLI_PROFILE '_'.
+  -L, --list-profiles    Print list of aws-cli profiles on stdout
 
-  -v, --verbose        Print program progress messages on stderr. Specify multiple
-                         times to increase verbosity: info, debug, and tracing (set -x)
+      --none             Unset the in-effect aws-cli profile
+                           Alternatively, can be expressed as AWS_CLI_PROFILE '_'.
 
-      --               Signals the end of options and disables further options processing.
-                         Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
+  -v, --verbose          Print program progress messages on stderr. Specify multiple
+                           times to increase verbosity: info, debug, and tracing (set -x)
+
+      --                 Signals the end of options and disables further options processing.
+                           Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
 
 Report bugs to $MAINTAINER.
 EODEF
@@ -812,6 +816,83 @@ EODEF
 }
 EOF
 
+
+    "${CAT_PROG}" - <<EOF  # interpolating
+
+function __t_f_aws_as_print_dflt_cfg_file () {
+
+    "\${__T_V_AWS_AS_CAT_PROG}" - <<EOINIT  # interpolating
+# -*- conf-unix -*-
+#
+# This is the customization file for aws-as(1), created automatically
+# when the program was initialized on \$(\${__T_V_AWS_AS_DATE_PROG} -u -Iseconds)
+#
+# This file is a Bourne-style shell script snippet, and is "sourced" by the
+# aws-as(1) program at initialization time. The default content lists all of
+# the configuration variables available for the version of aws-as that
+# produced the file, but newer versions may support additional config knobs
+# not represented here.
+#
+# For the full list of valid aws-as config file variables that may appear
+# here, see aws-as(1) or the project's online documentation:
+#
+#     https://salewski.github.io/aws-as/
+#     https://github.com/salewski/aws-as
+#
+# HINT: The variables in this file can also be specified on the
+#       aws-as-activate(1) command line that generates the aws-as(1) script
+#       definition that is eval'd. Rather than:
+#
+#           \\\$ eval "\\\$(aws-as-activate -s)"
+#
+#       you can do something like this:
+#
+#           \\\$ eval "\\\$(printf '%s;\n' 'aws_as_cfg_debug_init=true' && aws-as-activate -s)"
+#
+#       or even this:
+#
+#           \\\$ eval "\\\$(printf '%s;\n' 'set -x' 'aws_as_cfg_debug_init=true' 'set +x' && aws-as-activate -s)"
+#
+# CAVEAT: Any variables set as described above will look to 'aws-as' to be
+#         pre-existing in the environment, so will be restored to the
+#         original setting as specified on the command line at deactivation
+#         time; they will still be present in the environment after you
+#         invoke aws-as-deactivate.
+
+# Set to 'true' to cause aws-as initialization to emit debugging messages
+# related to parsing this config file.
+#
+aws_as_cfg_debug_init=false
+
+
+# When switching to a given aws-cli profile, AWS_* credential variables
+# (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN) are
+# not set in the current shell by default. If this setting is set to
+# 'true', then the AWS_* cred. vars will be set (but but not exported)
+# in the current environment.
+#
+# See also: aws_as_cfg_auto_export
+#
+aws_as_cfg_auto_hoist=false
+
+
+# When AWS_* credential variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+# and AWS_SESSION_TOKEN) are hoisted into the current shell, by default they
+# are set but not exported. A user can have them exported by manually invoking
+# 'aws-as -E' (or equivalently, 'aws-as --export'), but if you need to do that
+# repeatedly the manual invocation will get tedious fast.
+#
+# If this setting is set to 'true', then the AWS_* cred. vars will be
+# automatically exported upon being hoisted into the current shell
+# environment.
+#
+# See also: aws_as_cfg_auto_hoist
+#
+aws_as_cfg_auto_export=false
+
+EOINIT
+}
+EOF
 
     # Note that aws-vault reads the profiles from ~/.aws/config, just like
     # 'aws configure list-profiles'. But aws-vault does it much faster.
@@ -1359,6 +1440,12 @@ function __t_f_aws_as_main () {
                 ;;
 
 
+            '--generate-config')
+                __t_f_aws_as_print_dflt_cfg_file
+                return $?
+                ;;
+
+
             '--list-profiles' | '-L')
                 __t_f_aws_as_list_profiles
                 return $?
@@ -1551,76 +1638,7 @@ if test -e "${__T_V_AWS_AS_CONFIG_FILE_PATH}"; then :; else
                 "${__T_V_AWS_AS_CONFIG_FILE_PATH}" 1>&2
         else
 
-            "${__T_V_AWS_AS_CAT_PROG}" - <<EOINIT >> "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
-# -*- conf-unix -*-
-#
-# This is the customization file for aws-as(1), created automatically
-# when the program was initialized on $(${__T_V_AWS_AS_DATE_PROG} -u -Iseconds)
-#
-# This file is a Bourne-style shell script snippet, and is "sourced" by the
-# aws-as(1) program at initialization time. The default content lists all of
-# the configuration variables available for the version of aws-as that
-# produced the file, but newer versions may support additional config knobs
-# not represented here.
-#
-# For the full list of valid aws-as config file variables that may appear
-# here, see aws-as(1) or the project's online documentation:
-#
-#     https://salewski.github.io/aws-as/
-#     https://github.com/salewski/aws-as
-#
-# HINT: The variables in this file can also be specified on the
-#       aws-as-activate(1) command line that generates the aws-as(1) script
-#       definition that is eval'd. Rather than:
-#
-#           \$ eval "\$(aws-as-activate -s)"
-#
-#       you can do something like this:
-#
-#           \$ eval "\$(printf '%s;\n' 'aws_as_cfg_debug_init=true' && aws-as-activate -s)"
-#
-#       or even this:
-#
-#           \$ eval "\$(printf '%s;\n' 'set -x' 'aws_as_cfg_debug_init=true' 'set +x' && aws-as-activate -s)"
-#
-# CAVEAT: Any variables set as described above will look to 'aws-as' to be
-#         pre-existing in the environment, so will be restored to the
-#         original setting as specified on the command line at deactivation
-#         time; they will still be present in the environment after you
-#         invoke aws-as-deactivate.
-
-# Set to 'true' to cause aws-as initialization to emit debugging messages
-# related to parsing this config file.
-#
-aws_as_cfg_debug_init=false
-
-
-# When switching to a given aws-cli profile, AWS_* credential variables
-# (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN) are
-# not set in the current shell by default. If this setting is set to
-# 'true', then the AWS_* cred. vars will be set (but but not exported)
-# in the current environment.
-#
-# See also: aws_as_cfg_auto_export
-#
-aws_as_cfg_auto_hoist=false
-
-
-# When AWS_* credential variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-# and AWS_SESSION_TOKEN) are hoisted into the current shell, by default they
-# are set but not exported. User can have them exported by manually invoking
-# 'aws-as -E' (or equivalently, 'aws-as --export'), but if you need to do that
-# repeatedly the manual invocation will get tedious fast.
-#
-# If this setting is set to 'true', then the AWS_* cred. vars will be
-# automatically exported upon being hoisted into the current shell
-# environment.
-#
-# See also: aws_as_cfg_auto_hoist
-#
-aws_as_cfg_auto_export=false
-
-EOINIT
+            __t_f_aws_as_print_dflt_cfg_file >> "${__T_V_AWS_AS_CONFIG_FILE_PATH}"
         fi
     fi
 fi
