@@ -256,15 +256,17 @@ section {
   padding-bottom:50px;
 }
 
-.article-content {
-  max-width: 550px;
-  text-align: justify;
-}
 
 p {
   max-width: 550px;
   text-align: justify;
 }
+
+.logical-paragraph {
+  max-width: 550px;
+  text-align: justify;
+}
+
 
 small {
   font-size:11px;
