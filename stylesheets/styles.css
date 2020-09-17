@@ -56,7 +56,10 @@
 
 body {
   background-color: #fff;
-  padding:50px;
+  padding-top:10px;
+  padding-right:10px;
+  padding-bottom:30px;
+  padding-left:10px;
   font: 14px/1.5 "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
   color:#727272;
   font-weight:400;
@@ -64,11 +67,17 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   color:#222;
-  margin:0 0 20px;
+  margin-top:    1.50em;
+  margin-right:  0.00em;
+  margin-bottom: 0.65em;
+  margin-left:   0.00em;
 }
 
 p, ul, ol, table, pre, dl {
-  margin:0 0 20px;
+  margin-top:    1.50em;
+  margin-right:  0.00em;
+  margin-bottom: 0.65em;
+  margin-left:   0.00em;
 }
 
 h1, h2, h3 {
@@ -108,7 +117,7 @@ a:hover small {
 }
 
 .wrapper {
-  width:860px;
+  width:900px;
   margin:0 auto;
 }
 
@@ -126,9 +135,12 @@ code, pre {
 }
 
 pre {
-  padding:8px 15px;
+  padding-top:    8px;
+  padding-bottom: 8px;
+  padding-left:   0px;
+  padding-right:  0px;
   background: #f8f8f8;
-  border-radius:5px;
+  border-radius:3px;
   border:1px solid #e5e5e5;
   overflow-x: auto;
 }
@@ -158,7 +170,7 @@ img {
 }
 
 header {
-  width:300px;
+  width:200px;
   float:left;
   position:fixed;
   -webkit-font-smoothing:subpixel-antialiased;
@@ -166,12 +178,12 @@ header {
 
 header ul {
   list-style:none;
-  height:40px;
+  height:45px;
   padding:0;
   background: #f4f4f4;
-  border-radius:5px;
+  border-radius:3px;
   border:1px solid #e0e0e0;
-  width:270px;
+  width:220px;
 }
 
 header li {
@@ -182,11 +194,11 @@ header li {
 }
 
 header li:first-child a {
-  border-radius:5px 0 0 5px;
+  border-radius:3px 0 0 3px;
 }
 
 header li:last-child a {
-  border-radius:0 5px 5px 0;
+  border-radius:0 3px 3px 0;
 }
 
 header ul a {
@@ -239,9 +251,14 @@ header ul a strong {
 }
 
 section {
-  width:500px;
+  width:665px;
   float:right;
   padding-bottom:50px;
+}
+
+p {
+  max-width: 550px;
+  text-align: justify;
 }
 
 small {
@@ -256,7 +273,7 @@ hr {
 }
 
 footer {
-  width:300px;
+  width:220px;
   float:left;
   position:fixed;
   bottom:50px;
