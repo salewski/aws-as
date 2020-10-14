@@ -126,17 +126,17 @@ Enter `aws-as`.
 
 ## The solution
 
-Use `aws-vault` to handle caching of temporary AWS credentials for one or more
-`aws-cli` "profiles" (IAM Users and/or Roles).
+Use **`aws-vault`** to handle caching of temporary AWS credentials for one or
+more **`aws-cli`** "profiles" (IAM Users and/or Roles).
 
-Use `aws-as` to quickly select an "in-effect profile", and to quickly switch
-between profiles.
+Use **`aws-as`** to quickly select an **"in-effect profile"**, and to quickly
+switch between profiles.
 
-Use `aagg` to invoke arbitrary commands using the "in-effect profile", using
-the underlying `aws-vault` tool to actually run the command.
+Use **`aagg`** to invoke arbitrary commands using the **"in-effect profile"**,
+using the underlying **`aws-vault`** tool to actually run the command.
 
-Use `aws-as --hoist` and/or `aws-as --export` to "hoist" the `AWS_*`
-credential variables into the current shell, when needed.
+Use **`aws-as --hoist`** and/or **`aws-as --export`** to **"hoist"** the
+`AWS_*` credential variables into the current shell, when needed.
 
 
 ## The approach
