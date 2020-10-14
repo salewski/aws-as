@@ -2288,3 +2288,8 @@ Copyright 2020 Alan D. Salewski
 
 =cut
 
+
+# Local Variables:
+#     mode: sh
+#     eval: (sh-set-shell "bash" t nil)
+# End:
