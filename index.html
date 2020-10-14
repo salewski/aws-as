@@ -54,48 +54,65 @@ the <strong>'AWS_*'</strong> credential variables
 and <strong><code>AWS_SESSION_TOKEN</code></strong>) into the current shell process
 and otherwise manipulating them (export, unexport, unset, ...).</em></p>
 
-<p>The <code>aws-as</code> project provides a collection of tools for switching
-between cached sets of temporary AWS STS credentials for IAM User and/or Role when
-working at the command line.</p>
+<p>The <code>aws-as</code> project provides a collection of tools for
+switching between cached sets of temporary AWS STS credentials for IAM Users
+and/or Roles when working at the command line.</p>
 
 <p>The provided <strong><code>aws-as</code></strong>
 and <strong><code>aagg</code></strong> commands work as a layer on top
 of <a href="https://github.com/99designs/aws-vault">aws-vault</a>
 (from <a href="https://99designs.com/">99designs</a>), so work with your
-existing <code>aws-cli</code> configuration. The provided tooling works alongside
+existing <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html"><code>aws-cli</code>
+configuration</a>. The provided tooling works alongside
 of <code>aws-vault</code> it to augment its capabilities.</p>
 
-<h2>Three Layers</h2>
+<!-- TOC -->
+<h2><a id="sec-contents">Contents:</a></h2>
+<ul>
+  <li><a href="#sec-three-layers">Three Layers</a></li>
+  <li><a href="#sec-aws-cli-and-mfa">aws-cli and MFA</a></li>
+  <li><a href="#sec-prerequisites">Prerequisities</a></li>
+  <li><a href="#sec-installation">Installation</a></li>
+  <li><a href="#sec-post-installation">Post-installation</a></li>
+  <li><a href="#sec-usage">Usage</a></li>
+  <li><a href="#sec-faq">FAQ</a></li>
+<!--  <li><a href="#sec-aws-vault-quickstart">aws-vault quickstart</a></li> -->
+  <li><a href="#sec-license">License</a></li>
+</ul>
 
-<p>There are three levels of tooling involved:
-  <ol>
-    <li><p><strong><code>aws-cli</code>:</strong> This defines the way you
-           manage various "profiles" for your AWS IAM Users and Roles to
-           assume. If you have used AWS from the command line, you no doubt
-           already have this. The '<code>aws</code>' program is not used
-           directly by <code>aws-as</code>, but its configuration (or one
-           that looks it) must be present in order for the below two layers
-           to work.</p></li>
+<h2><a id="sec-three-layers">Three Layers</a></h2>
 
-    <li><p><strong><code>aws-vault</code>:</strong> This tool is used directly
-           by <code>'aws-as'</code> to cause temporary AWS STS ("Security Token
-           Service") credentials to be cached within <code>aws-vault</code>, and in
-           some circumstances to have <code>aws-vault</code> run a user-supplied
-           command in a subprocess with a particular set of AWS credentials
-           in-effect.</p></li>
+<div class="logical-paragraph">
+<p>There are three layers of tooling involved:</p>
+<ol>
+  <li><p><strong><code>aws-cli</code>:</strong> This defines the way you
+         manage various "profiles" for your AWS IAM Users and Roles to
+         assume. If you have used AWS from the command line, you no doubt
+         already have this. The '<code>aws</code>' program is not used
+         directly by <code>aws-as</code>, but its configuration (or one
+         that looks it) must be present in order for the other two layers
+         to work.</p></li>
 
-    <li><p><strong><code>aws-as</code>:</strong> Maintains a notion of "the currently
-           in-effect aws-cli profile", and the
-           provided <strong>'<code>aws-as</code>'</strong> command allows quickly
-           switching between various profiles. The
-           provided <strong>'<code>aagg</code>'</strong> command makes it simple to
-           run a command in the the context of the in-effect profile.</p></li>
-  </ol>
-</p>
+  <li><p><strong><code>aws-vault</code>:</strong> This tool is used directly
+         by <code>'aws-as'</code> to cause temporary AWS STS ("Security Token
+         Service") credentials to be cached within <code>aws-vault</code>, and in
+         some circumstances to have <code>aws-vault</code> run a user-supplied
+         command in a subprocess with a particular set of AWS credentials
+         in-effect.</p></li>
 
-<p>The <code>aws-as</code> programs treat the aws-cli
-configuration as a read-only resource, and never attempts to modify it in any
-way. In fact, <code>aws-as</code> leverages the information in your aws-cli config
+  <li><p><strong><code>aws-as</code>:</strong> Maintains a notion of "the currently
+         in-effect aws-cli profile", and the
+         provided <strong>'<code>aws-as</code>'</strong> command allows quickly
+         switching between various profiles. The
+         provided <strong>'<code>aagg</code>'</strong> command makes it simple to
+         run a command in the the context of the in-effect profile.</p></li>
+</ol>
+</div>
+
+
+<p>The <code>aws-as</code> programs treat the aws-cli configuration as a
+read-only resource, and never attempt to modify it in any way. In
+fact, <code>aws-as</code> leverages the information in your aws-cli config
 only indirectly, via <code>aws-vault</code>.</p>
 
 <p>Because it leverages <code>aws-vault</code>, the <code>aws-as</code>
@@ -106,13 +123,14 @@ to use and new temporary credentials are obtained as needed. Re-authentication
 (with MFA, if necessary) is performed when needed.</p>
 
 
-<h2>aws-cli and MFA</h2>
+<h2><a id="sec-aws-cli-and-mfa">aws-cli and MFA</a></h2>
 
-<p>If you have used '<code>aws-cli</code>' directly you may be familiar with the way
-it <em>only</em> sometimes caches temporary credentials. In particular, when you have
-a profile defined for a role to be assumed, a set of temporary credentials is cached
-when you perform an activity that using the profile. On the other hand, if you
-authenticate with MFA by invoking the 'sts get-session-token', then aws-cli <em>does
+<p>If you have used '<code>aws-cli</code>' directly you may be familiar
+with the way it <em>only</em> sometimes caches temporary credentials. In
+particular, when you have a profile defined for a role to be assumed, a
+set of temporary credentials is cached when you perform an activity that
+using the profile. On the other hand, if you authenticate with MFA by
+invoking the 'sts get-session-token' subcommand, then aws-cli <em>does
 not</em> cache those temporary credentials.</p>
 
 <p>In contrast, when '<code>aws-vault</code>' needs to authenticate using a profile,
@@ -139,6 +157,7 @@ prompt the user for the MFA token when authenticating when assuming the role.</p
 
 <p>Why are we talking about this here?</p>
 
+<a id="explanation-mfa-serial"></a>
 <p>This is important for effective use of MFA when using <code>aws-as</code> to
 switch between different profiles. <strong>You will want to add
 '<code>mfa_serial</code>' settings to your aws-cli profiles, where needed, even if
@@ -148,34 +167,135 @@ by <code>aws-vault</code> (and so, indirectly, by <code>aws-as</code>, as
 well).</strong></p>
 
 
-<h2>Installation</h2>
+<h2><a id="sec-prerequisites">Prerequisities</a></h2>
+<div class="logical-paragraph">
 <p>
-Installation should be as simple as:
-<pre>
-    $ ./configure   # add a --prefix=path/to/some/location to install
-                    # someplace other than beneath /usr/local (the default)
-    $ make
-    $ make check    # optional, but encouraged
-    $ make install
-</pre>
+The <strong><code>aws-as</code></strong> is fairly light on
+prerequisites -- mostly, you just need any modern Unix-like system
+(GNU/Linux, OpenBSD/FreeBSD/NetBSD/..., macOS, ...). Two particular
+prerequisites are:</p>
+<ul>
+    <li><p><strong><code>bash >= 4.x</code></strong>
+        (<a href="http://ftp.gnu.org/gnu/bash/">Releases</a>) <a href="https://www.gnu.org/software/bash/">Bash</a>,
+        the <a href="https://www.gnu.org/" alt="www.gnu.org">GNU</a>
+        Project's "Bourne Again SHell". A version greater than or equal
+        to 4.x is required because the associative array feature
+        introduced in that version is used. At the time of writing
+        (2020-09), the current version of Bash is 5.0.</li>
+
+    <li><p><strong><code>aws-vault >= 6.0.0</code></strong> <a href="https://github.com/99designs/aws-vault/releases">(Releases)</a></p>
+        <p>Version 6.0.0 (or newer) is required because that is the version
+        in which the '<code>aws-vault clear</code>' command was
+        introduced. That command removes short-term credentials from
+        the <code>aws-vault</code> cache; that feature is used by the
+        '<code>aws-as --clear-creds</code>' command.</p>
+
+<!--
+        <p><em>If you are new to <code>aws-vault</code> you may be
+        interested in the <a href="#sec-aws-vault-quickstart">"aws-vault
+        quickstart"</a> section below.</em></p></li>
+-->
+</ul>
+<p>
+In general, the provided '<code>configure</code>' script
+(see <a href="#sec-installation">"Installation"</a> section below) will
+probe the system for needed prerequisites, so you'll know you've got
+everything needed if it does not complain about anything
+missing.
+<em>[But see also <a href="https://github.com/salewski/aws-as/issues/34">issue #34</a>. --Editor]</em>
 </p>
+</div>
 
 
-<h2>Usage</h2>
-
-<p>Once installed, you use it like this (the changed prompt is documented
-below):
+<h2><a id="sec-installation">Installation</a></h2>
+<p>
+Installation should be as simple as:</p>
 <pre>
-    $ eval "$(aws-as-activate -s)"
+    $ <strong>./configure</strong>   # add a --prefix=path/to/some/location to install
+                    # someplace other than beneath /usr/local (the default)
+    $ <strong>make</strong>
+    $ <strong>make check</strong>    # optional, but encouraged
+    $ <strong>make install</strong>
+</pre>
+
+
+<h2><a id="sec-post-installation">Post-installation</a></h2>
+<div class="logical-paragraph">
+<ul>
+
+  <li><p><em>(Required).</em>
+      Ensure <strong><code>aws-vault</code></strong> has a "backend"
+      configured. This will only be necessary for
+      first-time <code>aws-vault</code> users. For users who have an
+      existing <code>aws-vault</code> configuration, there is nothing
+      new required here; just move on to the next step.</p></li>
+
+  <li><p><em>(Optional).</em> If you use multi-factor authentication
+      (MFA) to access some or all of your non-Role AWS profiles, you may
+      need to add <strong>'<code>mfa_serial</code>'</strong> settings to
+      your <code>aws-cli</code>
+      configuration. See <a href="#explanation-mfa-serial">our
+      explanation above</a>.
+      </p></li>
+
+</ul>
+<p>With '<code>aws-vault</code>' (and where needed, MFA) configured, you
+are ready to start using <strong>'<code>aws-as</code>'</strong>.</p>
+</div>
+
+
+<h2><a id="sec-usage">Usage</a></h2>
+
+<!-- subsection toc -->
+
+<a id="subsec-contents"></a>
+<h3>Usage contents:</h2>
+<ul>
+  <li><a href="#subsec-walkthrough">Walkthrough</a></li>
+  <li><a href="#subsec-aws-profile-is-not-used">AWS_PROFILE is not used</a></li>
+  <li><a href="#subsec-no-aws-variables-are-set-by-default">No AWS_* variables are set (by default)</a>
+      <ul>
+        <li><a href="#subsec-how-it-works">How it works</a></li>
+        <li><a href="#subsec-but-aws-vars-in-the-shell-env-can-be-useful">"But AWS_* vars in the shell env can be useful..." (hoisting)</a></li>
+        <li><a href="#subsec-exporting-the-aws-variables">Exporting the AWS_* variables</a></li>
+        <li><a href="#subsec-unexporting-the-aws-variables">Unexporting the AWS_* variables</a></li>
+        <li><a href="#subsec-deleting-the-aws-variables">Deleting the AWS_* variables</a></li>
+        <li><a href="#subsec-use-the-verbose-option">Use the '-v' (--verbose) option</a></li>
+
+      </ul>
+  </li>
+
+</ul>
+
+
+<a id="subsec-walkthrough"></a>
+<h3>Walkthrough</h3>
+
+<p>Once installed, <strong>'<code>aws-as</code>'</strong> and friends
+are used as follows.</p>
+
+<p>You start by <strong>"activating"</strong> the tools in your current
+shell process, like this:</p>
+<pre>
+    $ <strong>eval "$(aws-as-activate -s)"</strong>
     (_) $
 </pre>
-That makes three commands (all implemented as bash functions) available in
-your current shell environment:
+<p><em>[The changed prompt
+is <a href="#explanation-ps1-prompt">explained further down
+below</a>.]</em></p>
+
+<div class="logical-paragraph">
+<p>
+That "activation" makes three commands available in your current shell
+environment:</p>
 <ul>
   <li><strong><code>aws-as-deactivate</code></strong></li>
   <li><strong><code>aws-as</code></strong></li>
   <li><strong><code>aagg</code></strong></li>
 </ul>
+</div>
+
+<p>All three of the above commands are implemented as bash <em>functions</em>.</p>
 
 <p>The <strong><code>aws-as-deactivate</code></strong> command causes all of the
 function code and variables "installed" by the above <code>eval</code> to be deleted
@@ -184,85 +304,113 @@ to the <code>eval</code>. The
 <code>AWS_*</code> variables (if any) that had been set in the environment previously
 are restored to the state they were found in.</p>
 
-<p>The <strong><code>aws-as</code></strong> command is the main tool used to switch
-between the credentials associated with different aws-cli profiles. Examples of basic
-use follows.</p>
+<p>The <strong><code>aws-as</code></strong> command is the tool used to
+switch between the credentials associated with different aws-cli
+profiles. Examples of basic use follow.</p>
 
-<p>List the aws-cli profiles:
+<p>List the aws-cli profiles:</p>
 <pre>
-    (_) $ aws-as -L
+    (_) $ <strong>aws-as -L</strong>
     some-prof-name
     some-other-prof-name
     yet-another-prof-name
 </pre>
-Switch to a given profile:
+<p>Switch to a given profile:</p>
 <pre>
-    (_) $ aws-as some-prof-name
+    (_) $ <strong>aws-as some-prof-name</strong>
     (some-prof-name) $
 </pre>
 
-<p>Note that the shell's <strong><code>$PS1</code></strong> setting has been
-augmented with the name of the profile whose creds are currently in effect. We call
-that profile
+<p><a id="explanation-ps1-prompt"></a>Note that the
+shell's <strong><code>$PS1</code></strong> setting has been augmented
+with the name of the profile whose creds are currently in effect. We
+call that profile
 <strong>"the in-effect aws-cli profile"</strong>,
 or just
 <strong>"the in-effect profile"</strong>. The earlier prompt
 prefix <strong><tt>"(_)"</tt></strong> indicated that aws-as was active in the
 environment, but no profile had been selected to be active. If you change to a
-different profile, that other profile will be indicated:
+different profile, that other profile will be indicated:</p>
 <pre>
-    (some-prof-name) $ aws-as some-other-prof-name
+    (some-prof-name) $ <strong>aws-as some-other-prof-name</strong>
     (some-other-prof-name) $
 </pre>
 
 <p>To go back to <em>not</em> having any profile be active, use
-the <strong><code>--none</code></strong> option:
+the <strong><code>--none</code></strong> option:</p>
 <pre>
-    (some-other-prof-name) $ aws-as --none
+    (some-other-prof-name) $ <strong>aws-as --none</strong>
     (_) $
 </pre>
-or, more conveniently, by specifying <strong>"_"</strong> (a single underscore) as
-the name of the profile to switch to:
+<p>or, more conveniently, by specifying <strong>"_"</strong> (a single underscore) as
+the name of the profile to switch to:</p>
 <pre>
-    (some-other-prof-name) $ aws-as _
+    (some-other-prof-name) $ <strong>aws-as _</strong>
     (_) $
 </pre>
-<strong>The underscore is recognized as meaning "no profile".</strong> It is also the
-reason and underscore is shown in the augmented <code>$PS1</code> prompt when there
-is no in-effect profile.
+<p><strong>The underscore is recognized as meaning "no
+profile".</strong> It is also the reason an underscore (as opposed to
+some other symbol) is shown in the augmented <code>$PS1</code> prompt
+when there is no in-effect profile.
 </p>
-
 
 <p>To have <code>aws-as</code> (and friends) remove themselves entirely from your
 shell environment, invoke the <strong>'<code>aws-as-deactivate</code>'</strong>
-command:
+command:</p>
 <pre>
-    (_) $ aws-as-deactivate
+    (_) $ <strong>aws-as-deactivate</strong>
     $
 </pre>
+
+<p>At this point you know how to "turn it on" and "turn it off", but to
+actually get any real work done you will need to know how to perform
+some activity with the in-effect profile, well, in-effect.</p>
+
+<div class="logical-paragraph">
+<p>There are two different scenarios to consider:</p>
+<ol>
+  <li><p>Running some other program
+      (e.g., <a href="https://www.terraform.io/">'<code>terraform</code>'</a>)
+      as a subprocess using the in-effect profile</p></li>
+
+  <li><p>Performing some activity (e.g., ad hoc scripting) in your
+      current shell process using the in-effect profile.</p></li>
+</ol>
+<p>Here we will consider the first scenario, which is the most common;
+it entails use of the <strong>'<code>aagg</code>'</strong> command to
+run "the real" program. The second requires a discussion
+about <a href="#explanation-hoisting">"hoisting"</a>, which is explained
+later on.</p>
+</div>
+
+<p>
+
 </p>
+
+
+
 
 <p>Note that the <strong>'<code>aws-as</code>'</strong>
 and <strong>'<code>aagg</code>'</strong> commands, though implemented as shell
 functions, are intended to "feel like" normal command line programs. Among other
 things, they provide meaningful return code (zero for success, non-zero for error) as
 an "exit status", and you can ask them for
-their <strong>'<code>--version</code>'</strong>:
+their <strong>'<code>--version</code>'</strong>:</p>
 <pre>
-    (_) $ aws-as --version
+    (_) $ <strong>aws-as --version</strong>
     aws-as 0.2.0  (built: 2020-09-14 15:07:58)
     
-    Copyright (C) 2020 Alan D. Salewski <salewski@att.net>
+    Copyright (C) 2020 Alan D. Salewski <ads@salewski.email>
     License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.
     This is free software: you are free to change and redistribute it.
     There is NO WARRANTY, to the extent permitted by law.
     
     Written by Alan D. Salewski.
 </pre>
-and their <strong>'<code>--help</code>'</strong> output...<br/>
-<strong><code>aws-as</code>:</strong>
+<p>and their <strong>'<code>--help</code>'</strong> output...<br>
+<strong><code>aws-as</code>:</strong></p>
 <pre>
-    (_) $ aws-as --help
+    (_) $ <strong>aws-as --help</strong>
     usage: aws-as [-v...] { -h | --help }
       or:  aws-as [-v...] { -V | --version }
       or:  aws-as [-v...] { -c | --clear-env }
@@ -312,11 +460,11 @@ and their <strong>'<code>--help</code>'</strong> output...<br/>
           --                 Signals the end of options and disables further options processing.
                                Any remaining argument will be interpreted as teh AWS_CLI_PROFILE.
     
-    Report bugs to Alan D. Salewski <salewski@att.net>.
+    Report bugs to Alan D. Salewski <ads@salewski.email>.
 </pre>
-<strong><code>aagg</code>:</strong>
+<p><strong><code>aagg</code>:</strong></p>
 <pre>
-    (_) $ aagg --help
+    (_) $ <strong>aagg --help</strong>
     usage: aagg [-v...] { -h | --help }
       or:  aagg [-v...] { -V | --version }
       or:  aagg [OPTION...] [--] COMMAND [ARG...]
@@ -335,9 +483,10 @@ and their <strong>'<code>--help</code>'</strong> output...<br/>
           --         Signals the end of options and disables further options processing.
                        Any remaining argument will be interpreted as the COMMAND and its ARGs.
     
-    Report bugs to Alan D. Salewski <salewski@att.net>.
+    Report bugs to Alan D. Salewski <ads@salewski.email>.
 </pre>
 
+<a id="subsec-aws-profile-is-not-used"></a>
 <h3>AWS_PROFILE is not used</h3>
 
 <p>Note that the notion of the "in-effect aws-cli profile" is similar to what is
@@ -359,28 +508,32 @@ the <code>'AWS_*'</code> variables) that would get loaded if the user were to us
 <strong>"hoist"</strong> feature described next.</p>
 
 
+<a id="subsec-no-aws-variables-are-set-by-default"></a>
 <h3>No <code>AWS_*</code> variables are set (by default)</h3>
 
-By default, no <code>AWS_*</code> variables are set in the current shell environment.
+<p>By default, no <code>AWS_*</code> variables are set in the current shell environment.</p>
 
 
+<a id="subsec-how-it-works"></a>
 <h4>How it works</h4>
 
 <p>When <strong>'<code>aagg</code>'</strong> is given a user-supplied
 command to run, that command will actually be run as a grandchild of the
 current shell process. The way it works is that '<code>aagg</code>'
-constructs an '<code>aws-vault exec<code>' command line using the
+constructs an '<code>aws-vault exec</code>' command line using the
 in-effect profile, and just invokes that. The '<code>aws-vault</code>'
 program will pull the temporary credentials out of its cache for the
 profile, and then use those cached creds to set the '<code>AWS_*</code>'
 credential variables
 (<code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>,
 and <code>AWS_SESSION_TOKEN</code>) in the environment of the invoked
-subprocess.
+subprocess.</p>
 
 
+<a id="subsec-but-aws-vars-in-the-shell-env-can-be-useful">
 <h4>"But <code>AWS_*</code> vars in the shell env can be useful..."</h4>
 
+<a id="explanation-hoisting"></a>
 <p>Yes, sometimes it is convenient to have the '<code>AWS_*</code>'
 credential variables set (and maybe even exported) in the current shell
 environment. One such use case is ad hoc scripting that references other
@@ -418,108 +571,248 @@ captures that output and
 <p>Here it is in action. To have the variable hoisted-up into the
 current shell environment, use
 the <strong>'<code>aws-as</code>'</strong> <strong>'<code>-H</code>'</strong>
-(<strong>'<code>--hoist</code>'</strong>) option:
+(<strong>'<code>--hoist</code>'</strong>) option:</p>
 <pre>
-    (some-prof-name) $ echo $AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>echo $AWS_ACCESS_KEY_ID</strong>
     # [no output, is not set]
 
-    (some-prof-name) $ declare -p AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>declare -p AWS_ACCESS_KEY_ID</strong>
     bash: declare: AWS_ACCESS_KEY_ID: not found
 
-    (some-prof-name) $ aws-as --hoist
+    (some-prof-name) $ <strong>aws-as --hoist</strong>
 
-    (some-prof-name) $ echo $AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>echo $AWS_ACCESS_KEY_ID</strong>
     ASIA4SOMERANDOMCHARS
 </pre>
 
 <p><em>Voila!</em> The '<code>AWS_*</code>' credential variables appropriate
 for the in-effect profiles have been set in your current shell.</p>
 
-<p>They are set, but they are not exported. To export them, use
-the <strong>'<code>-E</code>'</strong>
-(<strong><code>--export</code></strong>) option:
+
+<a id="subsec-exporting-the-aws-variables"></a>
+<h4>Exporting the AWS_* variables</h4>
+
+<p>The '<code>AWS_*</code>' credential variables are set,
+but they are not exported.
+To export them,
+use the <strong>'<code>-E</code>'</strong>
+(<strong><code>--export</code></strong>) option:</p>
+
 <pre>
     # show that the export attribute is not set:
-    (some-prof-name) $ declare -p AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>declare -p AWS_ACCESS_KEY_ID</strong>
     declare -- AWS_ACCESS_KEY_ID="ASIA4SOMERANDOMCHARS"
 
     # request that AWS_* vars be exported
-    (some-prof-name) $ aws-as --export
+    (some-prof-name) $ <strong>aws-as --export</strong>
 
     # confirm that the export attribute is now set
-    (some-prof-name) $ declare -p AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>declare -p AWS_ACCESS_KEY_ID</strong>
     declare -x AWS_ACCESS_KEY_ID="ASIA4SOMERANDOMCHARS"
 </pre>
-</p>
 
+
+<a id="subsec-unexporting-the-aws-variables"></a>
+<h4>Unxporting the AWS_* variables</h4>
 
 <p>To remove the export attribute from the <code>AWS_*</code> variables,
 use the <strong>'<code>-U</code>'</strong>
-(<strong><code>--unexport</code></strong>) option:
+(<strong><code>--unexport</code></strong>) option:</p>
 <pre>
-    (some-prof-name) $ aws-as -U
+    (some-prof-name) $ <strong>aws-as -U</strong>
 
     # confirm that the export attribute is no longer set
-    (some-prof-name) $ declare -p AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>declare -p AWS_ACCESS_KEY_ID</strong>
     declare -- AWS_ACCESS_KEY_ID="ASIA4SOMERANDOMCHARS"
 </pre>
-</p>
+
+
+<a id="subsec-deleting-the-aws-variables"></a>
+<h4>Deleting the AWS_* variables</h4>
 
 <p>To delete the <code>AWS_*</code> variables from the current shell environment,
 use the ("little cee") <strong>'<code>-c</code>'</strong>
-(<strong><code>--clear-env</code></strong>) option:
+(<strong><code>--clear-env</code></strong>) option:</p>
 <pre>
-    (some-prof-name) $ aws-as -v --clear-env
+    (some-prof-name) $ <strong>aws-as -v --clear-env</strong>
     aws-as (info): unsetting env var: AWS_ACCESS_KEY_ID
     aws-as (info): unsetting env var: AWS_SECRET_ACCESS_KEY
     aws-as (info): unsetting env var: AWS_SESSION_TOKEN
 
-    (some-prof-name) $ echo $AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>echo $AWS_ACCESS_KEY_ID</strong>
     # [no output]
 
-    (some-prof-name) $ declare -p AWS_ACCESS_KEY_ID
+    (some-prof-name) $ <strong>declare -p AWS_ACCESS_KEY_ID</strong>
     bash: declare: AWS_ACCESS_KEY_ID: not found
-</p>
-
-
-
-
-<p>To have the commands report what they are doing, use the <code>-v</code> (<code>--verbose</code>)
-option. You can specify <code>-v</code> more than once; each additional <code>-v</code> (up to
-three) increases the output verbosity. Three <code>-v</code> options cause tracing
-(<code>set -x</code>) to be enable within the context of the <code>aws-as</code> operation.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h2>Future directions</h2>
-
-<p>
-The author is looking into replacing the <code>aws-as</code> built-in
-file-based caching by delegating that work to the <code>aws-vault</code> tool,
-which is not currently used by <code>aws-as</code>.
-</p>
-
-<br></br>
-
-<h2><tt>aws-as</tt> license</h2>
-<p>
-<pre>
-GPLv2+: GNU GPL version 2 or later &lt;http://gnu.org/licenses/gpl.html&gt;
 </pre>
+
+<p>To delete the <code>AWS_*</code> variables from the current shell
+environment
+<strong><em>and</em></strong> request
+that <strong>'<code>aws-vault</code>'</strong> clear those temporary
+credentials from its cache,
+use the ("capital cee") <strong>'<code>-C</code>'</strong>
+(<strong><code>--clear-creds</code></strong>) option.
+(Note that clearing the credentials from the memory and
+the <code>aws-vault</code> cache <em>does not</em> change the in-effect
+profile.)
+Here we also use the <strong>'<code>-v</code>'</strong>
+(<strong><code>--verbose</code></strong>) option to request that the tool emit
+additional information about what it is doing:</p>
+
+<pre>
+    (some-prof-name) $ <strong>aws-as --verbose --clear-creds</strong>
+    aws-as (info): unsetting env var: AWS_ACCESS_KEY_ID
+    aws-as (info): unsetting env var: AWS_SECRET_ACCESS_KEY
+    aws-as (info): unsetting env var: AWS_SESSION_TOKEN
+    aws-as (info): requesting that aws-vault clear cached creds for profile: some-prof-name
+    Cleared 1 sessions.
+    (some-prof-name) $
+</pre>
+
+
+<a id="subsec-use-the-verbose-option"></a>
+<h4>Use the '-v' (--verbose) option</h4>
+
+<p>In general, to have the commands report what they are doing,
+use the <strong><code>-v</code></strong> (<strong><code>--verbose</code></strong>) option.
+You can specify <code>-v</code> more than once;
+each additional <code>-v</code>
+(up to three)
+increases the output verbosity.
+One <strong><code>-v</code></strong> opt turns on "info-level" output.
+Two <strong><code>-v</code></strong> opts turns on "debug-level" output.
+Three <code>-v</code> options cause tracing (<code>set -x</code>)
+to be enabled
+within the context of the <code>aws-as</code> or <code>aagg</code> operation.
 </p>
+
+
+<h2><a id="sec-faq">FAQ</a></h2>
+
+<div class="logical-paragraph">
+<p>Frequently asked questions (with answers!):</p>
+<ul>
+  <li><p><a id="faq-impl-as-bash-functions"></a><strong>Q: Why are the commands implemented as bash functions?</strong></p>
+
+      <p><strong>A: There are three reasons:</strong></p>
+
+      <ol>
+
+        <li><p><em><code>$PS1</code> augmentation.</em> We desire to
+            augment the <strong><code>$PS1</code></strong> shell prompt
+            with "the in-effect profile" without requiring the user to
+            futz with the bash <code>PROMPT_COMMAND</code> (or the
+            equivalent in other shells). This requires the ability to
+            (carefully!) augment the value of <code>$PS1</code>
+            directly. Like the "virtual env" feature provided by the
+            Python
+            3 <a href="https://docs.python.org/3/library/venv.html"
+            alt="Python 3 venv module page">'<code>venv</code>'</a>
+            module (and similarly behaved tools), the user should see
+            regular feedback about when the feature is active.</p></li>
+
+        <li><p><em>Ad hoc scripting.</em> Even though it is generally
+            safer to <em>avoid</em> having the '<code>AWS_*</code>'
+            credential variables defined in your interactive shell
+            environment, there are situations in which doing so is both
+            safe and useful, as discussed above
+            in <a href="#explanation-hoisting">our explanation of
+            "hoisting"</a>. This requires access to the current shell
+            environment.</p></li>
+
+        <li><p><em>History.</em> The original motivation for
+            implementing <strong>'<code>aws-as</code>'</strong> was to
+            manipulate the current shell environment.</p>
+
+            <p>Additional background: The original implementation of
+            the <strong>'<code>aws-as</code>'</strong> command was
+            motivated by the frustrations involved with repeatedly
+            setting up the current shell environment with temporary
+            '<code>AWS_*</code>' credential variables using the output
+            from the <strong>'<code>aws</code>'</strong> command
+            (from <strong><code>aws-cli</code></strong>). Like others,
+            the author employed various scripting approaches to this
+            problem with different levels of sophistication as needs
+            increased. However, none of the solutions used was both
+            general <em>and</em> easy to use. They tended to work only
+            with a specific set of AWS accounts that happened to be in
+            use at the time, or they solved a subset of the problems
+            that are now solved more generally
+            by <strong>'<code>aws-as</code>'</strong>.</p></li>
+      </ol>
+    </li>
+
+
+  <li><p><a id="faq-see-what-will-be-evaled"></a><strong>Q:</strong>I am
+      a little uncomfortable '<code>eval</code>'ing anything in my current
+      shell. Is there a way to see what is going on?</p></li>
+
+      <p><strong>A:</strong> Sure: you can examine the output
+      of <strong>'<code>aws-as-activate -s</code>'</strong> in
+      your <code>$PAGER</code> without '<code>eval</code>'ing it:</p>
+      <pre>
+    $ <strong>aws-as-activate -s | less -N</strong>
+      </pre>
+
+      <p>You can even save it to a temporary file, and only source that
+      (instead of directly sourcing the output
+      of <strong>'<code>aws-as-activate -s</code>'</strong>) once you
+      are satisfied that doing so is safe:</p>
+      <pre>
+    $ <strong>aws-as-activate -s | tee /tmp/to-activate.bash | less -N</strong>
+    # [review happens here]
+
+    # [once satisfied, you can source the copy saved by tee]
+    $ <strong>source /tmp/to-activate.bash</strong>
+    (_) $
+      </pre></li>
+
+
+  <li><p><a id="faq-name-aws-as"></a><strong>Q: Where does the name 'aws-as' come from?</strong></p>
+
+      <p><strong>A:</strong> The
+      name <strong>'<code>aws-as</code>'</strong> comes from the
+      original purpose of the program: to use the AWS APIs <em>as</em>
+      the actor (IAM User or Role) implied by the
+      in-effect <code>aws-cli</code> profile.</p>
+
+      <p>"Now I'm working <em>as</em> Foo."<br>
+         "Now I'm working <em>as</em> Bar."<br>
+         "Now I'm back to Foo."<br>
+         <em>And so on...</em></p></li>
+
+
+  <li><p><a id="faq-name-aagg"></a><strong>Q: Where does the name 'aagg' come from?</strong></p>
+
+      <p><strong>A:</strong> The short answer is: It was easy to type quickly.</p>
+
+      <p>The name 'aagg' is an
+         <a alt="initialysm (definition)"
+            href="https://salewski.github.io/2020/09/17/word-def-initialysm.html">initialysm</a>
+         (not to be mistaken for an <em>initialism</em> or for a
+         <em>backronym</em>, though those are related terms).
+         The original comment in the source code sums it up this way:</p>
+      <pre>
+    # aagg == (A)WS-(a)-(g)o-(g)o
+    # Read as: "AWS-a-go-go"
+    # Dumb name; is easy to type; is grep-friendly.
+</pre></li>
+
+</ul>
+</div>
+
+<!--
+<h2><a id="sec-aws-vault-quickstart"><code>aws-vault</code> quickstart</a></h2>
+
+
+<p><strong style="color:red;">
+FIXME: document aws-vault quickstart
+</strong></p>
+-->
+
+
+<h2><a id="sec-license">License</a></h2>
 
 <p>
 Unless otherwise stated by a different license notice in a particular file,
@@ -527,41 +820,43 @@ all files in the `aws-as' project are made available under the GNU
 GPL version 2, or (at your option) any later version.
 </p>
 
+
+<pre>
+    GPLv2+: GNU GPL version 2 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+</pre>
+
+
 <p>
 See the <a href="https://github.com/salewski/aws-as/blob/master/COPYING">COPYING</a> file for the full license.
 </p>
 
-<p>
 <pre>
-Copyright (C) 2020 Alan D. Salewski &lt;salewski@att.net&gt;
+    Copyright (C) 2020 Alan D. Salewski &lt;ads@salewski.email&gt;
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
+        This program is free software; you can redistribute it and/or modify
+        it under the terms of the GNU General Public License as published by
+        the Free Software Foundation; either version 2 of the License, or
+        (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+        This program is distributed in the hope that it will be useful,
+        but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License along
-    with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+        You should have received a copy of the GNU General Public License along
+        with this program; if not, write to the Free Software Foundation, Inc.,
+        51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 </pre>
-</p>
 
 
-<h3>
-<a id="authors-and-contributors" class="anchor" href="#authors-and-contributors" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+<h3><a id="authors-and-contributors" class="anchor" href="#authors-and-contributors" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Authors and Contributors</h3>
 
 <p>The <code>aws-as</code> project code was written by <a href="https://github.com/salewski" class="user-mention">Alan D. Salewski</a>.</p>
 
-<p>The <a href="https://github.com/">GitHub</a> project page is located at:
+<p>The <a href="https://github.com/">GitHub</a> project page is located at:</p>
 <ul>
     <li><a href="https://github.com/salewski/aws-as">https://github.com/salewski/aws-as</a></li>
 </ul>
-</p>
 
 
 
