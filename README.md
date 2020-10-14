@@ -1,20 +1,33 @@
 # aws-as
 
+*Built on top of [aws-vault][aws-vault-gh].  Allows fast and easy switching
+between [aws-cli][aws-cli-site] [profiles][aws-cli-doc-prof], and running
+user-supplied commands in the context of what we call **"the in-effect
+profile"**.  Also provides features for **"hoisting"** the **`AWS_*`**
+credential variables (**`AWS_ACCESS_KEY_ID`**, **`AWS_SECRET_ACCESS_KEY`**,
+and **`AWS_SESSION_TOKEN`**) into the current shell process and otherwise
+manipulating them (export, unexport, unset, ...).*
+
 The `aws-as` project provides a collection of tools for switching between
 cached sets of AWS IAM User and/or Role credentials when working at the
 command line.
 
-Think "venv for AWS IAM identities", and you're on the right track.
+Think "venv for AWS IAM identities" and you'll be on the right track.
 
 Allows you to express within a given shell, "I now want to interact with AWS
-*as* `${iam_user_or_role}`." Temporary credentials are cached, even for IAM
-Users just authenticating using MFA (`sts:GetSessionToken`). The current IAM
-User or Role name is reflected in the shell prompt.
+*as* `${iam_user_or_role}`." Temporary credentials are cached, and reused as
+you switch back and forth between AWS accounts. Works with MFA. The current
+IAM User or Role name is reflected in the shell prompt.
 
+The provided **`aws-as`** and **`aagg`** commands work as a layer on top of
+**`aws-vault`** (from [99designs][99designs-gh]), so work with your existing
+aws-cli configuration. The provided tooling works alongside of aws-vault it to
+augment its capabilities.
 
-**This is a WIP repo; just created (2020-09-07)**
+For full details, see the project's website:
 
-**!!! Not yet ready for use !!!**
+   * https://salewski.github.io/aws-as/
+   * http://salewski.email/aws-as/
 
 
 ## The problem
@@ -41,6 +54,10 @@ You want to work across tools, and the only thing that works everywhere is
 exporting some subset of the environment variables `AWS_PROFILE` (see above
 note about profiles), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
 `AWS_SESSION_TOKEN`.
+
+You do not want to have your `AWS_*` credential variables in your current
+shell environment, much less exported. Except when sometimes you do (for ad
+hoc scripting).
 
 Everybody has their own scripting to deal with different subsets of the
 problem, in different ways, with varying degrees of success.
@@ -92,141 +109,121 @@ them would not solve the credentials non-caching problem for IAM Users (as
 opposed to Roles).
 
 
-## The solution (for now)
+## The solution
 
-The most (only?) portable cross-tool credential sharing mechanism I have found
-is the use of the `AWS_*` environment variables mentioned above. Therefore,
-the solution provided by the `aws-as` tool is to leverage existing mechanisms
-in the `aws-cli` to authenticate (with or without MFA, as needed), and to
-provide a may to switch those in and out of the user's shell environment. All
-short-term credentials are cached, and you can query about the expiration time
-of the "current" set configured in the environment.
+Use `aws-vault` to handle caching of temporary AWS credentials for one or more
+`aws-cli` "profiles" (IAM Users and/or Roles).
+
+Use `aws-as` to quickly select an "in-effect profile", and to quickly switch
+between profiles.
+
+Use `aagg` to invoke arbitrary commands using the "in-effect profile".
 
 
 ## The approach
 
-This idea is still in flux, but the approach envisioned is to provide a user
-interface experience that is a cross between Python's "venv" ("virtual
-environment") and `ssh-agent` (specifically, the mechanisms provided by
-`ssh-agent -s` and `ssh-agent -c`).
+The `aws-as` project provides a user interface experience that is a cross
+between Python's "venv" ("virtual environment") and `ssh-agent` (specifically,
+the mechanisms provided by `ssh-agent -s` and `ssh-agent -c`).
 
-The user will invoke a command (e.g., `aws-as-activate -s`) to emit a handful
-of shell functions in the dialect of the user's shell (bash will be supported
-first, with the intent later add support for Bourne or strict POSIX shells,
-zsh, csh/tcsh, and maybe fish?). The user would `eval` the output of the
-command to install those functions in the environment of the current
-shell. Something like this:
+The user invokes a command (`aws-as-activate -s`) that emits a handful of
+shell functions in the dialect of the user's shell (bash is currently the only
+supported dialect, but if there is interest then support for other shells
+could be added). Under normal usage, the user would `eval` the output of the
+command to install those functions in the environment of the current shell,
+like this:
 
 ```
     $ eval $(aws-as-activate -s)
 ```
 
-Part of the installed functionality would be an `aws-as-deactivate` function,
-which would provide the ability for the above added bits to delete themselves
-when no longer needed.
+Part of the installed functionality is an `aws-as-deactivate` function, which
+provides the ability for the above added bits to delete themselves when no
+longer needed:
 
 ```
     $ aws-as-deactivate
 ```
 
+Other "command functions" installed include `aws-aw` and `aagg`, with purposes
+described above.
+
 The reason for installing shell functions is to provide the ability to
 manipulate the current shell environment without requiring that the user
-"source" script files.
+"source" script files. The "in-effect profile" is tracked in the the current
+shell environment. (Note that tracking of the "in-effect profile" *does not*
+use the `AWS_PROFILE` environment variable.)
 
-The idea is that the tool augment `aws-cli` (not operate entirely separately
-from it), and to allow that functionality to be leveraged for manipulating the
-shell environment (where it can be leveraged by the AWS SDK's and other
-compatible tooling). Profiles can and should be leveraged, but only at the
-local level; they help us get the environment into a shape that is useful to
-other tooling without those other tools having to support or honor or
-reference profiles.
+The idea is that the `aws-as` tools augment `aws-vault` (and indirectly,
+`aws-cli`), and to allow that functionality to be leveraged more easily when
+working with multiple AWS identities (Users and/or Roles). Profiles are
+leveraged, but only at the local level; they help us get the environment into
+a shape that is useful to other tooling without those other tools having to
+support or honor or reference profiles.
 
 Once the user has activated the `aws-as` machinery in a shell, the user's
 shell prompt will be augmented to show the "current" IAM User or Role that is
-reflected by the `AWS_*` environment variables (or `-`, if none).
+"in effect" (or `_`, if no profile is in-effect).
 
 From there the user uses the `aws-as` command to both authenticate and switch
-between IAM Users and Role (perhaps between different accounts).
+between IAM Users and Role (perhaps between different
+accounts). Authentication (including prompting for MFA tokens) is actually
+handled by the underlying `aws-vault` tool.
 
-Assuming an IAM User, 'my-user1', that needs to authenticate with MFA for API
-calls, the following will use `aws-cli` behind the scenes to obtain temporary
-credentials. The credentials thus obtained have information in their context
-info that asserts that the authentication to AWS STS ("Security Token
-Service") was performed using MFA. The credentials are cached (in this case by
-`aws-as`), and can be used later to assume roles or perform other actions for
-which the 'user1' has access. Notice how the shell prompt changes in these
-calls, too:
 
+# Build instructions
+
+The `aws-as` project is distributed as a standard GNU autotools-based package.
+
+The only prerequisite is bash >= 4.0. Assuming you have that and a normal
+Unix-like OS, then you are ready to build. From an unpacked release tarball,
+run:
 ```
-    $ eval $(aws-as-activate -s)
-    (-) $
-
-    (-) $ aws-as my-user1-dev
-    "Enter MFA code for ${your_mfa_serial_number}: "
-
-    (my-user1-dev) $ aws sts get-caller-identity
-    {
-        "UserId": "AIDCRAZYLOOKINGSTRING",
-        "Account": "111111111111",
-        "Arn": "arn:aws:iam::111111111111:user/my-user1"
-    }
+    $ ./configure
+    $ make
+    $ make check
+    $ make install
 ```
 
-At this point the user can assume other roles without having to authenticate
-again (until the short-term credentials obtained above expire):
-```
-    (my-user1-dev) $ aws-as my-role1-dev
-
-    (my-role1-dev) $ aws sts get-caller-identity
-    {
-        "UserId": "AROBUNCHOFRANDOMSTUFF:user1@dev-account",
-        "Account": "111111111111",
-        "Arn": "arn:aws:sts::111111111111:assumed-role/my-role1/my-user1@dev"
-    }
-
-    # switch back to 'my-user1' creds (cached, by aws-as)
-    (my-role1-dev) $ aws-as my-user1-dev
-    (my-user1-dev) $
-
-    # switch back to 'my-role1' creds (cached, by aws-cli)
-    (my-user1-dev) $ aws-as my-role1-dev
-    (my-role1-dev) $
-
-    # remove aws creds from environment ('-' means pristine state, which is always empty)
-    (my-role1-dev) $ aws-as -
-    (-) $
-
-    # switch back to 'my-user1' creds (just to show we can)
-    (-) $ aws-as my-user1-dev
-    (my-user1-dev) $
-
-    # remove all aws-as gunk from the environment
-    (my-user1-dev) $ aws-as-deactivate
-    $
-```
-
-The `aws-as -` call is intended to be analogous to `/bin/su -` on Unix-like
-systems, where it means to set the login shell environment similar to a real
-login (that is, without most of the cruft from the current environment). Here
-we're implying that whatever `AWS_*` environment variables have been set in
-the current session by `aws-as` will be unset.
-
-I'm also toying with the idea of a variant of `aws-as-deactivate` that would
-allow the user to keep the `AWS_*` credentials in the environment while still
-removing all of the `aws-as` gunk. Something like this:
-
-```
-    (my-user1-dev) $ aws-as-deactivate --keep-creds
-    $
-    $ echo "${AWS_SESSION_TOKEN+yep, still there}"
-    yep, still there
-```
+By default `make install` will install into subdirectories of `/usr/local`. To
+change where things will get installed, use `./configure --prefix=/some/path`.
 
 
-[Aws-cli-gh]:     https://github.com/aws/aws-cli          "GitHub repo: aws/aws-cli"
+# License
+
+GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>
+
+Unless otherwise stated by a different license notice in a particular
+file, all files in the `aws-as` project are made available under the GNU GPL
+version 2, or (at your option) any later version.
+
+See the [COPYING] file for the full license.
+
+Copyright (C) 2020 Alan D. Salewski <ads@salewski.email>
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+
+[aws-cli-gh]:     https://github.com/aws/aws-cli          "GitHub repo: aws/aws-cli"
 [aws-cli-site]:   https://aws.amazon.com/cli/             "AWS command line interface"
 [aws-sdk-go-gh]:  https://github.com/aws/aws-sdk-go       "GitHub repo: aws/aws-go-sdk"
+[aws-vault-gh]:   https://github.com/99designs/aws-vault  "GitHub repo: 99designs/aws-vault"
+[99designs-gh]:   https://github.com/99designs            "GitHub account: 99designs"
 [terraform-gh]:   https://github.com/hashicorp/terraform  "GitHub repo: hashicorp/terraform"
+
+[aws-cli-doc-prof]: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html "doc: aws-cli profiles"
 
 [tf-prov-aws-gh]:  https://github.com/terraform-providers/terraform-provider-aws  "GitHub repo: terraform-providers/terraform-provider-aws"
 [wikipedia-mfa]:   https://en.wikipedia.org/wiki/Multi-factor_authentication      "wikipedia.org: Multi-factor authentication"
