@@ -8,6 +8,9 @@ credential variables (**`AWS_ACCESS_KEY_ID`**, **`AWS_SECRET_ACCESS_KEY`**,
 and **`AWS_SESSION_TOKEN`**) into the current shell process and otherwise
 manipulating them (export, unexport, unset, ...).*
 
+
+## Overview
+
 The `aws-as` project provides a collection of tools for switching between
 cached sets of AWS IAM User and/or Role credentials when working at the
 command line.
@@ -28,6 +31,20 @@ For full details, see the project's website:
 
    * https://salewski.github.io/aws-as/
    * http://salewski.email/aws-as/
+
+The latest version of the project is `0.2.0` (released 2020-09-14), and can be
+downloaded from:
+
+   * https://salewski.github.io/aws-as/downloads/aws-as-0.2.0.tar.gz
+   * https://salewski.github.io/aws-as/downloads/aws-as-0.2.0.tar.gz.SHA-1
+   * https://salewski.github.io/aws-as/downloads/aws-as-0.2.0.tar.gz.SHA-256
+   * https://salewski.github.io/aws-as/downloads/aws-as-0.2.0.tar.gz.SHA3-256
+
+See the [NEWS] file for changes for this release.
+
+Older releases are available from the project's downloads page:
+
+   * https://salewski.github.io/aws-as/downloads/
 
 
 ## The problem
@@ -190,7 +207,7 @@ accounts). Authentication (including prompting for MFA tokens) is actually
 handled by the underlying `aws-vault` tool.
 
 
-# Build instructions
+## Build instructions
 
 The `aws-as` project is distributed as a standard GNU autotools-based package.
 
@@ -208,7 +225,7 @@ By default `make install` will install into subdirectories of `/usr/local`. To
 change where things will get installed, use `./configure --prefix=/some/path`.
 
 
-# License
+## License
 
 GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>
 
@@ -234,6 +251,12 @@ Copyright (C) 2020 Alan D. Salewski <ads@salewski.email>
     with this program; if not, write to the Free Software Foundation, Inc.,
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+
+[BUGS]:         https://github.com/salewski/aws-as/blob/master/BUGS     "file: BUGS"
+[COPYING]:      https://github.com/salewski/aws-as/blob/master/COPYING  "file: COPYING"
+[HACKING]:      https://github.com/salewski/aws-as/blob/master/HACKING  "file: HACKING"
+[INSTALL]:      https://github.com/salewski/aws-as/blob/master/INSTALL  "file: INSTALL"
+[NEWS]:         https://github.com/salewski/aws-as/blob/master/NEWS     "file: NEWS"
 
 [aws-cli-gh]:     https://github.com/aws/aws-cli          "GitHub repo: aws/aws-cli"
 [aws-cli-site]:   https://aws.amazon.com/cli/             "AWS command line interface"
