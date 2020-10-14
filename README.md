@@ -74,9 +74,8 @@ problem, in different ways, with varying degrees of success.
 
 ### aws-cli cached credentials
 
-The most full-featured caching and MFA support seems to be in the
-[aws-cli][aws-cli-gh] program. Current deficiencies for our purposes, though,
-include:
+The [aws-cli][aws-cli-gh] program contains only partial support for caching
+credentials and for using MFA. Current deficiencies for our purposes include:
 
    * The `sts` subcommand's `get-session-token` operation can be used to
      obtain temporary credentials for an IAM User, but:
@@ -109,6 +108,22 @@ them would not solve the credentials non-caching problem for IAM Users (as
 opposed to Roles).
 
 
+### aws-vault with multiple AWS identities
+
+The `aws-vault` tool does a great job of authenticating (using MFA, where
+necessary) and caching temporary credentials. In fact, in this regard it fills
+all of the gaps mentioned above for of `aws-cli`. However, one must always
+specify explicitly the name of the profile whose credentials are to be used
+for a given operation, and that gets tedious; it does not have a way to
+"remember" the name of "the current" profile.
+
+Also, while one can always start a subshell via `aws-vault` that will have the
+`AWS_*` credential variables set for a given profile, there is no canned way
+to get those settings into the current environment.
+
+Enter `aws-as`.
+
+
 ## The solution
 
 Use `aws-vault` to handle caching of temporary AWS credentials for one or more
@@ -117,7 +132,11 @@ Use `aws-vault` to handle caching of temporary AWS credentials for one or more
 Use `aws-as` to quickly select an "in-effect profile", and to quickly switch
 between profiles.
 
-Use `aagg` to invoke arbitrary commands using the "in-effect profile".
+Use `aagg` to invoke arbitrary commands using the "in-effect profile", using
+the underlying `aws-vault` tool to actually run the command.
+
+Use `aws-as --hoist` and/or `aws-as --export` to "hoist" the `AWS_*`
+credential variables into the current shell, when needed.
 
 
 ## The approach
